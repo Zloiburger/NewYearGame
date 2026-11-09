@@ -17,6 +17,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image // <--- НОВЫЙ ИМПОРТ
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,9 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale // <--- НОВЫЙ ИМПОРТ
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource // <--- НОВЫЙ ИМПОРТ
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.R // <--- НОВЫЙ ИМПОРТ
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -245,13 +249,9 @@ fun MainScreen() {
                     colors = if (isRoomTab) {
                         listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
                     } else {
-                        if (isDayTime) {
-                            // ДНЕВНОЙ ФОН (голубое небо)
-                            listOf(Color(0xFF4A90E2), Color(0xFF87CEEB), Color(0xFFFFE4B5), Color(0xFFFFDAB9))
-                        } else {
-                            // НОЧНОЙ ФОН
-                            listOf(Color(0xFF060914), Color(0xFF0C182B), Color(0xFF161B3B), Color(0xFF22133D))
-                        }
+                        // Фон для улицы (просто базовый цвет, поверх ляжет картинка)
+                        if (isDayTime) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5))
+                        else listOf(Color(0xFF060914), Color(0xFF0C182B))
                     }
                 )
             )
@@ -260,7 +260,9 @@ fun MainScreen() {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
 
+        // ЗДЕСЬ ВСТАВЛЯЕТСЯ ТВОЙ ФОН
         if (isRoomTab) RoomInteriorScenery() else StreetExteriorScenery(isDay = isDayTime)
+        
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
         Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = if (isTablet) 72.dp else 56.dp, bottom = if (isTablet) 96.dp else 84.dp).scale(tabletScale)) {
@@ -687,47 +689,23 @@ fun RoomInteriorScenery() {
     }
 }
 
+// ==========================================
+// НОВАЯ ФУНКЦИЯ ДЛЯ УЛИЦЫ С КАРТИНКАМИ
+// ==========================================
 @Composable
 fun StreetExteriorScenery(isDay: Boolean) {
-    val transition = rememberInfiniteTransition(label = "StreetAnimation")
-    val lanternGlow by transition.animateFloat(initialValue = 0.85f, targetValue = 1.0f, animationSpec = infiniteRepeatable(animation = tween(1500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "LanternGlow")
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val w = size.width; val h = size.height
-        
-        // Цвета для горки зависят от дня/ночи
-        val slideColorStart = if (isDay) Color(0xFFA0C4E8) else Color(0xFF8AAECB)
-        val slideColorEnd = if (isDay) Color(0xFF5B9BDB) else Color(0xFF3B577D)
-
-        val slidePath = Path().apply { moveTo(w * 0.52f, h * 0.72f); quadraticTo(w * 0.72f, h * 0.65f, w * 0.84f, h * 0.36f); lineTo(w, h * 0.36f); lineTo(w, h * 0.76f); close() }
-        drawPath(path = slidePath, brush = Brush.verticalGradient(colors = listOf(slideColorStart, slideColorEnd, Color(0xFF1E2D45)), startY = h * 0.36f, endY = h * 0.76f))
-        
-        val iceTrack = Path().apply { moveTo(w * 0.52f, h * 0.71f); quadraticTo(w * 0.72f, h * 0.64f, w * 0.84f, h * 0.36f) }
-        drawPath(path = iceTrack, color = IceCyan.copy(alpha = 0.85f), style = Stroke(width = 5.dp.toPx()))
-        drawPath(path = iceTrack, color = Color.White.copy(alpha = 0.9f), style = Stroke(width = 2.dp.toPx()))
-        
-        val kid1X = w * 0.85f; val kid1Y = h * 0.33f
-        drawCircle(color = Color(0xFF0F1A2C), radius = 4.dp.toPx(), center = Offset(kid1X, kid1Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid1X - 3.dp.toPx(), kid1Y + 4.dp.toPx()), size = Size(6.dp.toPx(), 9.dp.toPx())); drawLine(color = GoldAccentDark, start = Offset(kid1X - 5.dp.toPx(), kid1Y + 13.dp.toPx()), end = Offset(kid1X + 7.dp.toPx(), kid1Y + 13.dp.toPx()), strokeWidth = 2.dp.toPx())
-        val kid2X = w * 0.70f; val kid2Y = h * 0.54f
-        drawCircle(color = Color(0xFF0F1A2C), radius = 4.dp.toPx(), center = Offset(kid2X, kid2Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid2X - 3.dp.toPx(), kid2Y + 4.dp.toPx()), size = Size(6.dp.toPx(), 8.dp.toPx())); drawLine(color = HolidayRed, start = Offset(kid2X - 6.dp.toPx(), kid2Y + 12.dp.toPx()), end = Offset(kid2X + 6.dp.toPx(), kid2Y + 12.dp.toPx()), strokeWidth = 2.dp.toPx())
-        val kid3X = w * 0.56f; val kid3Y = h * 0.69f
-        drawCircle(color = Color(0xFF0F1A2C), radius = 3.5.dp.toPx(), center = Offset(kid3X, kid3Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid3X - 2.5.dp.toPx(), kid3Y + 3.5.dp.toPx()), size = Size(5.dp.toPx(), 7.dp.toPx()))
-        
-        val lampX = w * 0.20f; val lampBaseY = h * 0.76f; val lampTopY = h * 0.28f
-        if (!isDay) {
-            // Фонарь светит только ночью
-            drawCircle(brush = Brush.radialGradient(colors = listOf(WarmGlow.copy(alpha = 0.55f * lanternGlow), WarmGlow.copy(alpha = 0.25f * lanternGlow), Color.Transparent), center = Offset(lampX, lampTopY + 14.dp.toPx()), radius = 85.dp.toPx()), radius = 85.dp.toPx(), center = Offset(lampX, lampTopY + 14.dp.toPx()))
-        }
-        drawLine(color = Color(0xFF141923), start = Offset(lampX, lampBaseY), end = Offset(lampX, lampTopY), strokeWidth = 5.dp.toPx())
-        drawRect(color = Color(0xFF141923), topLeft = Offset(lampX - 7.dp.toPx(), lampBaseY - 6.dp.toPx()), size = Size(14.dp.toPx(), 8.dp.toPx()))
-        drawLine(color = Color(0xFF141923), start = Offset(lampX - 10.dp.toPx(), lampTopY + 8.dp.toPx()), end = Offset(lampX + 10.dp.toPx(), lampTopY + 8.dp.toPx()), strokeWidth = 3.dp.toPx())
-        val lampHeadPath = Path().apply { moveTo(lampX - 9.dp.toPx(), lampTopY + 8.dp.toPx()); lineTo(lampX + 9.dp.toPx(), lampTopY + 8.dp.toPx()); lineTo(lampX + 6.dp.toPx(), lampTopY + 22.dp.toPx()); lineTo(lampX - 6.dp.toPx(), lampTopY + 22.dp.toPx()); close() }
-        drawPath(path = lampHeadPath, color = Color(0xFF141923), style = Stroke(width = 2.dp.toPx()))
-        drawCircle(color = if(isDay) Color.Gray else GoldAccent, radius = 5.5.dp.toPx() * (if(isDay) 1f else lanternGlow), center = Offset(lampX, lampTopY + 15.dp.toPx()))
-        drawArc(color = SnowWhite, startAngle = 180f, sweepAngle = 180f, useCenter = true, topLeft = Offset(lampX - 10.dp.toPx(), lampTopY + 2.dp.toPx()), size = Size(20.dp.toPx(), 8.dp.toPx()))
-        
-        val snowDrifts = Path().apply { moveTo(0f, h * 0.74f); quadraticTo(w * 0.25f, h * 0.70f, w * 0.5f, h * 0.75f); quadraticTo(w * 0.75f, h * 0.80f, w, h * 0.73f); lineTo(w, h); lineTo(0f, h); close() }
-        drawPath(path = snowDrifts, brush = Brush.verticalGradient(colors = listOf(Color(0xFFE2EAF5), Color(0xFF90A8C5), Color(0xFF556F91)), startY = h * 0.70f, endY = h))
+    val backgroundImage = if (isDay) {
+        R.drawable.bg_day
+    } else {
+        R.drawable.bg_night
     }
+
+    Image(
+        painter = painterResource(id = backgroundImage),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
 }
 
 @Composable
@@ -753,7 +731,7 @@ private data class Snowflake(val xNorm: Float, val yOffsetNorm: Float, val speed
 fun GameBottomNavigationBar(currentTab: GameTab, onTabSelected: (GameTab) -> Unit, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier
-            .padding(bottom = 12.dp) // Отступ от края экрана
+            .padding(bottom = 12.dp)
             .shadow(12.dp, RoundedCornerShape(30.dp)),
         shape = RoundedCornerShape(30.dp),
         color = NightSurface.copy(alpha = 0.94f),
@@ -761,7 +739,7 @@ fun GameBottomNavigationBar(currentTab: GameTab, onTabSelected: (GameTab) -> Uni
     ) {
         Row(
             modifier = Modifier
-                .wrapContentWidth() // Панель ровно по размеру кнопок
+                .wrapContentWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
