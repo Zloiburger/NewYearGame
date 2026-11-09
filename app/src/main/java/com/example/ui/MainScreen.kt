@@ -858,7 +858,6 @@ fun ShopDialog(snowflakes: Long, clickPower: Int, onDismiss: () -> Unit, onBuyIt
                 
                 val costClick = calculateStreetTreeCost(clickPower)
                 
-                // Исправленный блок магазина
                 val items = listOf(
                     ShopItem("Корм для кота", "🐟", 15L, "+30% к сытости котика"),
                     ShopItem("Сила клика", "👆", costClick, "+1 к снежинкам за клик")
