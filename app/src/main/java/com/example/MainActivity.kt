@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.ui.MainScreen
+import com.example.ui.App
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NightSkyDark
 
@@ -19,7 +19,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         
-        // Скрываем системные панели (полноэкранный режим)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -32,7 +31,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = NightSkyDark
                 ) {
-                    MainScreen()
+                    App() // <--- ТЕПЕРЬ ВЫЗЫВАЕМ APP
                 }
             }
         }
