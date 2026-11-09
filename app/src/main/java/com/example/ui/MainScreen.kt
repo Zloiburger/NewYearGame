@@ -54,13 +54,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import kotlin.math.PI
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
 // ==========================================
-// МАТЕМАТИКА И ФОРМАТИРОВАНИЕ ЧИСЕЛ
+// МАТЕМАТИКА
 // ==========================================
 fun formatNumber(number: Long): String {
     return when {
@@ -76,7 +77,7 @@ fun calculateUpgradeCost(baseCost: Long, level: Int): Long {
 }
 
 // ==========================================
-// СОХРАНЕНИЕ ДАННЫХ
+// СОХРАНЕНИЯ
 // ==========================================
 data class GameSaveData(
     val snowflakes: Long,
@@ -122,7 +123,6 @@ object GameStorage {
     }
 }
 
-// Оставили только 2 вкладки
 enum class GameTab(val label: String, val icon: ImageVector) {
     ROOM("Комната", Icons.Filled.Home),
     STREET("Улица", Icons.Filled.AcUnit)
@@ -174,8 +174,6 @@ fun MainScreen() {
     val isDailyRewardClaimedToday = lastDailyRewardDay == todayDateStr
 
     var currentMaidenOutfit by remember { mutableStateOf(if (savedState.hasWinterCoat) MaidenOutfit.WINTER_COAT else MaidenOutfit.DEFAULT) }
-    
-    // Состояния для диалогов
     var isWardrobeOpen by remember { mutableStateOf(false) }
     var isShopOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
@@ -234,20 +232,41 @@ fun MainScreen() {
     val coroutineScope = rememberCoroutineScope()
     var snowmanPlusOneTrigger by remember { mutableIntStateOf(0) }
     val isRoomTab = currentTab == GameTab.ROOM
+    
+    // ЛОГИКА ДНЯ И НОЧИ
+    val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+    val isDayTime = hour in 7..18 // День с 7 утра до 6 вечера
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(colors = if (isRoomTab) listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609)) else listOf(Color(0xFF060914), Color(0xFF0C182B), Color(0xFF161B3B), Color(0xFF22133D)))).windowInsetsPadding(WindowInsets.statusBars)) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = if (isRoomTab) {
+                        listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
+                    } else {
+                        if (isDayTime) {
+                            // ДНЕВНОЙ ФОН (голубое небо)
+                            listOf(Color(0xFF4A90E2), Color(0xFF87CEEB), Color(0xFFFFE4B5), Color(0xFFFFDAB9))
+                        } else {
+                            // НОЧНОЙ ФОН
+                            listOf(Color(0xFF060914), Color(0xFF0C182B), Color(0xFF161B3B), Color(0xFF22133D))
+                        }
+                    }
+                )
+            )
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
 
-        if (isRoomTab) RoomInteriorScenery() else StreetExteriorScenery()
+        if (isRoomTab) RoomInteriorScenery() else StreetExteriorScenery(isDay = isDayTime)
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
-        // ДЕД МОРОЗ И СНЕГУРОЧКА
         Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = if (isTablet) 72.dp else 56.dp, bottom = if (isTablet) 96.dp else 84.dp).scale(tabletScale)) {
             HolidayHostsBackground(currentOutfit = currentMaidenOutfit, onSnegurochkaClick = { isWardrobeOpen = true })
         }
 
-        // ЕЛКА
         Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.92f else 0.88f).padding(bottom = 20.dp).scale((if (isRoomTab) 0.70f else 1.0f) * tabletScale), contentAlignment = Alignment.BottomCenter) {
             ChristmasTree25D(isRoom = isRoomTab, treeLevel = treeLevel, garlandMode = lightsMode, onTreeClick = {
                 if (treeLevel == 0) showToast("Ёлочка пока без украшений! Улучши её ✨")
@@ -255,7 +274,6 @@ fun MainScreen() {
             })
         }
 
-        // КНОПКА УЛУЧШЕНИЯ ЕЛКИ
         Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (isTablet) 115.dp else 102.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF1C1335).copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.7f)), shadowElevation = 4.dp, modifier = Modifier.padding(end = 6.dp)) {
                 Text(text = if (treeLevel == 0) "Ур. 0" else "Ур. $treeLevel", color = GoldAccent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
@@ -275,7 +293,6 @@ fun MainScreen() {
             }
         }
 
-        // КОТ
         if (isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 24.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
                 InteractiveCat(isRoom = true, satiety = catSatiety, isAwake = isCatAwake, plusOneTrigger = catPlusOneTrigger, bowlLevel = bowlLevel, canUpgradeBowl = snowflakes >= calculateUpgradeCost(30L, bowlLevel), onUpgradeBowl = {
@@ -289,7 +306,6 @@ fun MainScreen() {
             }
         }
 
-        // СНЕГОВИК
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 28.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
                 InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { snowflakes += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() }, clickPower = clickPower)
@@ -298,16 +314,13 @@ fun MainScreen() {
 
         if (!isRoomTab) SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
 
-        // ЕЖЕДНЕВНЫЙ ПОДАРОК
         DailyRewardButton(isClaimedToday = isDailyRewardClaimedToday, onClaimReward = {
             if (!isDailyRewardClaimedToday) { snowflakes += 100; lastDailyRewardDay = todayDateStr; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") }
             else showToast("Вы уже забрали подарок сегодня! 🎁")
         }, modifier = Modifier.align(Alignment.TopStart).padding(top = 10.dp, start = 16.dp))
 
-        // СЧЕТЧИК
         SnowflakeCounterTop(snowflakes = snowflakes, incomeRate = effectiveIncomeRate, modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
 
-        // ВЕРХНЯЯ ПАНЕЛЬ СПРАВА
         Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             IconButton(onClick = { isWardrobeOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, GoldAccent.copy(alpha = 0.5f), CircleShape)) { Text(text = "👗", fontSize = 16.sp) }
             IconButton(onClick = { isShopOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, GoldAccent.copy(alpha = 0.5f), CircleShape)) { Icon(imageVector = Icons.Filled.ShoppingCart, contentDescription = "Магазин", tint = GoldAccent, modifier = Modifier.size(18.dp)) }
@@ -319,7 +332,6 @@ fun MainScreen() {
         // НИЖНЯЯ ПАНЕЛЬ (КОМПАКТНАЯ)
         GameBottomNavigationBar(currentTab = currentTab, onTabSelected = { tab -> currentTab = tab }, modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars))
 
-        // ДИАЛОГ МАГАЗИНА
         if (isShopOpen) {
             ShopDialog(snowflakes = snowflakes, clickPower = clickPower, treeLevel = treeLevel, onDismiss = { isShopOpen = false }, onBuyItem = { itemIndex, cost ->
                 when (itemIndex) {
@@ -361,7 +373,7 @@ fun MainScreen() {
 }
 
 // ==========================================
-// КОМПОНЕНТЫ ИНТЕРФЕЙСА
+// КОМПОНЕНТЫ
 // ==========================================
 @Composable
 fun HolidayHostsBackground(currentOutfit: MaidenOutfit, onSnegurochkaClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -676,31 +688,43 @@ fun RoomInteriorScenery() {
 }
 
 @Composable
-fun StreetExteriorScenery() {
+fun StreetExteriorScenery(isDay: Boolean) {
     val transition = rememberInfiniteTransition(label = "StreetAnimation")
     val lanternGlow by transition.animateFloat(initialValue = 0.85f, targetValue = 1.0f, animationSpec = infiniteRepeatable(animation = tween(1500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "LanternGlow")
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width; val h = size.height
+        
+        // Цвета для горки зависят от дня/ночи
+        val slideColorStart = if (isDay) Color(0xFFA0C4E8) else Color(0xFF8AAECB)
+        val slideColorEnd = if (isDay) Color(0xFF5B9BDB) else Color(0xFF3B577D)
+
         val slidePath = Path().apply { moveTo(w * 0.52f, h * 0.72f); quadraticTo(w * 0.72f, h * 0.65f, w * 0.84f, h * 0.36f); lineTo(w, h * 0.36f); lineTo(w, h * 0.76f); close() }
-        drawPath(path = slidePath, brush = Brush.verticalGradient(colors = listOf(Color(0xFF8AAECB), Color(0xFF3B577D), Color(0xFF1E2D45)), startY = h * 0.36f, endY = h * 0.76f))
+        drawPath(path = slidePath, brush = Brush.verticalGradient(colors = listOf(slideColorStart, slideColorEnd, Color(0xFF1E2D45)), startY = h * 0.36f, endY = h * 0.76f))
+        
         val iceTrack = Path().apply { moveTo(w * 0.52f, h * 0.71f); quadraticTo(w * 0.72f, h * 0.64f, w * 0.84f, h * 0.36f) }
         drawPath(path = iceTrack, color = IceCyan.copy(alpha = 0.85f), style = Stroke(width = 5.dp.toPx()))
         drawPath(path = iceTrack, color = Color.White.copy(alpha = 0.9f), style = Stroke(width = 2.dp.toPx()))
+        
         val kid1X = w * 0.85f; val kid1Y = h * 0.33f
         drawCircle(color = Color(0xFF0F1A2C), radius = 4.dp.toPx(), center = Offset(kid1X, kid1Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid1X - 3.dp.toPx(), kid1Y + 4.dp.toPx()), size = Size(6.dp.toPx(), 9.dp.toPx())); drawLine(color = GoldAccentDark, start = Offset(kid1X - 5.dp.toPx(), kid1Y + 13.dp.toPx()), end = Offset(kid1X + 7.dp.toPx(), kid1Y + 13.dp.toPx()), strokeWidth = 2.dp.toPx())
         val kid2X = w * 0.70f; val kid2Y = h * 0.54f
         drawCircle(color = Color(0xFF0F1A2C), radius = 4.dp.toPx(), center = Offset(kid2X, kid2Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid2X - 3.dp.toPx(), kid2Y + 4.dp.toPx()), size = Size(6.dp.toPx(), 8.dp.toPx())); drawLine(color = HolidayRed, start = Offset(kid2X - 6.dp.toPx(), kid2Y + 12.dp.toPx()), end = Offset(kid2X + 6.dp.toPx(), kid2Y + 12.dp.toPx()), strokeWidth = 2.dp.toPx())
         val kid3X = w * 0.56f; val kid3Y = h * 0.69f
         drawCircle(color = Color(0xFF0F1A2C), radius = 3.5.dp.toPx(), center = Offset(kid3X, kid3Y)); drawRect(color = Color(0xFF0F1A2C), topLeft = Offset(kid3X - 2.5.dp.toPx(), kid3Y + 3.5.dp.toPx()), size = Size(5.dp.toPx(), 7.dp.toPx()))
+        
         val lampX = w * 0.20f; val lampBaseY = h * 0.76f; val lampTopY = h * 0.28f
-        drawCircle(brush = Brush.radialGradient(colors = listOf(WarmGlow.copy(alpha = 0.55f * lanternGlow), WarmGlow.copy(alpha = 0.25f * lanternGlow), Color.Transparent), center = Offset(lampX, lampTopY + 14.dp.toPx()), radius = 85.dp.toPx()), radius = 85.dp.toPx(), center = Offset(lampX, lampTopY + 14.dp.toPx()))
+        if (!isDay) {
+            // Фонарь светит только ночью
+            drawCircle(brush = Brush.radialGradient(colors = listOf(WarmGlow.copy(alpha = 0.55f * lanternGlow), WarmGlow.copy(alpha = 0.25f * lanternGlow), Color.Transparent), center = Offset(lampX, lampTopY + 14.dp.toPx()), radius = 85.dp.toPx()), radius = 85.dp.toPx(), center = Offset(lampX, lampTopY + 14.dp.toPx()))
+        }
         drawLine(color = Color(0xFF141923), start = Offset(lampX, lampBaseY), end = Offset(lampX, lampTopY), strokeWidth = 5.dp.toPx())
         drawRect(color = Color(0xFF141923), topLeft = Offset(lampX - 7.dp.toPx(), lampBaseY - 6.dp.toPx()), size = Size(14.dp.toPx(), 8.dp.toPx()))
         drawLine(color = Color(0xFF141923), start = Offset(lampX - 10.dp.toPx(), lampTopY + 8.dp.toPx()), end = Offset(lampX + 10.dp.toPx(), lampTopY + 8.dp.toPx()), strokeWidth = 3.dp.toPx())
         val lampHeadPath = Path().apply { moveTo(lampX - 9.dp.toPx(), lampTopY + 8.dp.toPx()); lineTo(lampX + 9.dp.toPx(), lampTopY + 8.dp.toPx()); lineTo(lampX + 6.dp.toPx(), lampTopY + 22.dp.toPx()); lineTo(lampX - 6.dp.toPx(), lampTopY + 22.dp.toPx()); close() }
         drawPath(path = lampHeadPath, color = Color(0xFF141923), style = Stroke(width = 2.dp.toPx()))
-        drawCircle(color = GoldAccent, radius = 5.5.dp.toPx() * lanternGlow, center = Offset(lampX, lampTopY + 15.dp.toPx()))
+        drawCircle(color = if(isDay) Color.Gray else GoldAccent, radius = 5.5.dp.toPx() * (if(isDay) 1f else lanternGlow), center = Offset(lampX, lampTopY + 15.dp.toPx()))
         drawArc(color = SnowWhite, startAngle = 180f, sweepAngle = 180f, useCenter = true, topLeft = Offset(lampX - 10.dp.toPx(), lampTopY + 2.dp.toPx()), size = Size(20.dp.toPx(), 8.dp.toPx()))
+        
         val snowDrifts = Path().apply { moveTo(0f, h * 0.74f); quadraticTo(w * 0.25f, h * 0.70f, w * 0.5f, h * 0.75f); quadraticTo(w * 0.75f, h * 0.80f, w, h * 0.73f); lineTo(w, h); lineTo(0f, h); close() }
         drawPath(path = snowDrifts, brush = Brush.verticalGradient(colors = listOf(Color(0xFFE2EAF5), Color(0xFF90A8C5), Color(0xFF556F91)), startY = h * 0.70f, endY = h))
     }
@@ -727,16 +751,28 @@ private data class Snowflake(val xNorm: Float, val yOffsetNorm: Float, val speed
 
 @Composable
 fun GameBottomNavigationBar(currentTab: GameTab, onTabSelected: (GameTab) -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.padding(horizontal = 8.dp, vertical = 6.dp).shadow(12.dp, RoundedCornerShape(24.dp)), shape = RoundedCornerShape(24.dp), color = NightSurface.copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f))) {
-        Row(modifier = Modifier.wrapContentWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        modifier = modifier
+            .padding(bottom = 12.dp) // Отступ от края экрана
+            .shadow(12.dp, RoundedCornerShape(30.dp)),
+        shape = RoundedCornerShape(30.dp),
+        color = NightSurface.copy(alpha = 0.94f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .wrapContentWidth() // Панель ровно по размеру кнопок
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             GameTab.values().forEach { tab ->
                 val isSelected = currentTab == tab; val interactionSource = remember { MutableInteractionSource() }
-                val testTagId = when (tab) { GameTab.ROOM -> "nav_room"; GameTab.STREET -> "nav_street" }
-                Box(modifier = Modifier.clip(RoundedCornerShape(18.dp)).background(if (isSelected) GoldAccent.copy(alpha = 0.22f) else Color.Transparent).border(width = if (isSelected) 1.dp else 0.dp, color = if (isSelected) GoldAccent.copy(alpha = 0.7f) else Color.Transparent, shape = RoundedCornerShape(18.dp)).clickable(interactionSource = interactionSource, indication = null) { onTabSelected(tab) }.padding(horizontal = 24.dp, vertical = 8.dp).testTag(testTagId), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(if (isSelected) GoldAccent.copy(alpha = 0.22f) else Color.Transparent).border(width = if (isSelected) 1.dp else 0.dp, color = if (isSelected) GoldAccent.copy(alpha = 0.7f) else Color.Transparent, shape = RoundedCornerShape(24.dp)).clickable(interactionSource = interactionSource, indication = null) { onTabSelected(tab) }.padding(horizontal = 24.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Icon(imageVector = tab.icon, contentDescription = tab.label, tint = if (isSelected) GoldAccent else SnowSoft.copy(alpha = 0.65f), modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = tab.label, color = if (isSelected) GoldAccent else SnowSoft.copy(alpha = 0.75f), fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                        Text(text = tab.label, color = if (isSelected) GoldAccent else SnowSoft.copy(alpha = 0.75f), fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
                     }
                 }
             }
@@ -762,7 +798,7 @@ fun SettingsDialog(snowIntensity: Float, onIntensityChange: (Float) -> Unit, isM
                     Switch(checked = isMusicEnabled, onCheckedChange = onMusicToggle, colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldAccentDark))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 1.8 • Улучшенная экономика 💾✨", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 1.9 • День/Ночь 💾✨", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
