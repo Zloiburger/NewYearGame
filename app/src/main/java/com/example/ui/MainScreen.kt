@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -65,6 +66,9 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
+// ==========================================
+// 1. МАТЕМАТИКА И МОДЕЛИ (ОТ GEMINI)
+// ==========================================
 fun formatNumber(number: Long): String {
     return when {
         number >= 1_000_000_000 -> String.format("%.1fB", number / 1_000_000_000.0)
@@ -74,110 +78,46 @@ fun formatNumber(number: Long): String {
     }
 }
 
-// ==========================================
-// 1. МАТЕМАТИКА И МОДЕЛИ (ОТ GEMINI)
-// ==========================================
-fun getRoomTreeCost(level: Int): Long {
-    val base = 50.0
-    val growth = 1.22
-    val clampedLevel = level.coerceIn(1, 15)
-    return (base * growth.pow((clampedLevel - 1).toDouble())).toLong()
-}
-
-fun getRoomTreeCps(level: Int): Double {
-    if (level <= 0) return 0.0
-    val base = 2.0
-    val growth = 1.34
-    val clampedLevel = level.coerceIn(1, 15)
-    return base * growth.pow((clampedLevel - 1).toDouble())
-}
-
-fun getStreetTreeCost(level: Int): Long {
-    val base = 30000.0
-    val growth = 1.48
-    val clampedLevel = level.coerceIn(1, 30)
-    return (base * growth.pow((clampedLevel - 1).toDouble())).toLong()
-}
-
-fun getStreetTreeCps(level: Int): Double {
-    if (level <= 0) return 0.0
-    val base = 250.0
-    val growth = 1.45
-    val clampedLevel = level.coerceIn(1, 30)
-    return base * growth.pow((clampedLevel - 1).toDouble())
-}
+fun getRoomTreeCost(level: Int): Long = (50.0 * 1.22.pow((level.coerceIn(1, 15) - 1).toDouble())).toLong()
+fun getRoomTreeCps(level: Int): Double = if (level <= 0) 0.0 else 2.0 * 1.34.pow((level.coerceIn(1, 15) - 1).toDouble())
+fun getStreetTreeCost(level: Int): Long = (30000.0 * 1.48.pow((level.coerceIn(1, 30) - 1).toDouble())).toLong()
+fun getStreetTreeCps(level: Int): Double = if (level <= 0) 0.0 else 250.0 * 1.45.pow((level.coerceIn(1, 30) - 1).toDouble())
 
 fun getClickPercent(level: Int): Double {
-    val percentages = listOf(
-        0.02, 0.023, 0.027, 0.032, 0.038,
-        0.045, 0.053, 0.062, 0.072, 0.083,
-        0.095, 0.108, 0.122, 0.137, 0.15
-    )
-    val clampedLevel = level.coerceIn(1, percentages.size)
-    return percentages[clampedLevel - 1]
+    val percentages = listOf(0.02, 0.023, 0.027, 0.032, 0.038, 0.045, 0.053, 0.062, 0.072, 0.083, 0.095, 0.108, 0.122, 0.137, 0.15)
+    return percentages[(level - 1).coerceIn(0, percentages.size - 1)]
 }
-
 fun getClickUpgradePrice(level: Int): Long {
-    val prices = listOf(
-        0L, 100L, 250L, 600L, 1500L,
-        4000L, 10000L, 28000L, 75000L, 200000L,
-        550000L, 1500000L, 4000000L, 11000000L, 30000000L
-    )
-    val clampedLevel = level.coerceIn(1, prices.size)
-    return prices[clampedLevel - 1]
+    val prices = listOf(0L, 100L, 250L, 600L, 1500L, 4000L, 10000L, 28000L, 75000L, 200000L, 550000L, 1500000L, 4000000L, 11000000L, 30000000L)
+    return prices[(level - 1).coerceIn(0, prices.size - 1)]
 }
+fun getClickPower(clickUpgradeLevel: Int, baseCps: Double): Double = 1.0 + (getClickPercent(clickUpgradeLevel) * baseCps)
+fun getCatUpgradePrice(level: Int): Long = (500.0 * 1.28.pow((level - 1).toDouble())).toLong()
+fun getCatCps(catLevel: Int, clickPower: Double): Double = if (catLevel <= 0) 0.0 else clickPower * (1.0 + (catLevel - 1) * 0.5)
 
-fun getClickPower(clickUpgradeLevel: Int, baseCps: Double): Double {
-    val pClick = getClickPercent(clickUpgradeLevel)
-    return 1.0 + (pClick * baseCps)
-}
+data class GameStateSnapshot(val totalCps: Double, val clickPower: Double, val baseCps: Double, val catCps: Double, val outfitBonusPercent: Double)
 
-fun getCatUpgradePrice(level: Int): Long {
-    val base = 500.0
-    val growth = 1.28
-    return (base * growth.pow((level - 1).toDouble())).toLong()
-}
-
-fun getCatCps(catLevel: Int, clickPower: Double): Double {
-    if (catLevel <= 0) return 0.0
-    val hitFrequencyPerSecond = 1.0 + (catLevel - 1) * 0.5
-    return clickPower * hitFrequencyPerSecond
-}
-
-data class GameStateSnapshot(
-    val totalCps: Double,
-    val clickPower: Double,
-    val baseCps: Double,
-    val catCps: Double,
-    val outfitBonusPercent: Double
-)
-
-fun calculateGameEconomy(
-    roomTreeLevel: Int, streetTreeLevel: Int, clickUpgradeLevel: Int,
-    catLevel: Int, boughtOutfitIds: Set<Int>, isDonateActive: Boolean
-): GameStateSnapshot {
-    val roomCps = getRoomTreeCps(roomTreeLevel)
-    val streetCps = getStreetTreeCps(streetTreeLevel)
-    val treeCps = roomCps + streetCps
-
-    val outfitBonusPercent = ALL_OUTFITS.filter { it.id in boughtOutfitIds }.sumOf { it.bonusPercent }
-    val outfitCps = treeCps * (outfitBonusPercent / 100.0)
-
-    val baseCps = treeCps + outfitCps
-    val clickPower = getClickPower(clickUpgradeLevel, baseCps)
+fun calculateGameEconomy(roomLevel: Int, streetLevel: Int, clickLevel: Int, catLevel: Int, outfitIds: Set<Int>, isDonateActive: Boolean): GameStateSnapshot {
+    val treeCps = getRoomTreeCps(roomLevel) + getStreetTreeCps(streetLevel)
+    val outfitBonus = ALL_OUTFITS.filter { it.id in outfitIds }.sumOf { it.bonusPercent }
+    val baseCps = treeCps * (1.0 + outfitBonus / 100.0)
+    val clickPower = getClickPower(clickLevel, baseCps)
     val catCps = getCatCps(catLevel, clickPower)
-
-    val sumCps = baseCps + catCps
-    val donateMultiplier = if (isDonateActive) 1.6 else 1.0
-    val totalCps = sumCps * donateMultiplier
-
-    return GameStateSnapshot(totalCps, clickPower, baseCps, catCps, outfitBonusPercent)
+    val totalCps = (baseCps + catCps) * (if (isDonateActive) 1.6 else 1.0)
+    return GameStateSnapshot(totalCps, clickPower, baseCps, catCps, outfitBonus)
 }
 
 // ==========================================
 // 2. МОДЕЛИ ДАННЫХ И НАРЯДЫ
 // ==========================================
 enum class CurrencyType { SNOWFLAKES, DONATE }
+
+enum class GraphicsQuality {
+    HIGH, MEDIUM, LOW;
+    companion object {
+        fun fromString(value: String?) = try { valueOf(value ?: "HIGH") } catch (e: Exception) { HIGH }
+    }
+}
 
 data class Outfit(
     val id: Int, val title: String, val emoji: String, val currency: CurrencyType, 
@@ -211,7 +151,6 @@ val ALL_OUTFITS = listOf(
 
 data class ShopItem(val name: String, val emoji: String, val cost: Long, val description: String)
 data class RoomBackground(val id: Int, val title: String, val price: Long, val wallColor: Color, @DrawableRes val imageRes: Int? = null)
-
 val ALL_BACKGROUNDS = listOf(
     RoomBackground(0, "Уютный вечер", 0L, Color(0xFF2B1A14)),
     RoomBackground(1, "Зимний лес", 5000L, Color(0xFF1E3A5F)),
@@ -225,7 +164,7 @@ enum class GameTab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun EmojiOrImage(emoji: String, imageRes: Int? = null, modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = 28.sp) {
+fun EmojiOrImage(emoji: String, imageRes: Int? = null, modifier: Modifier = Modifier, fontSize: TextUnit = 28.sp) {
     if (imageRes != null) {
         Image(painter = painterResource(id = imageRes), contentDescription = null, modifier = modifier)
     } else {
@@ -243,7 +182,8 @@ data class GameSaveData(
     val isMusicEnabled: Boolean, val isSfxEnabled: Boolean, val isVibrationEnabled: Boolean,
     val musicVolume: Float, val sfxVolume: Float, val snowIntensity: Float,
     val currentBackgroundId: Int, val purchasedBackgroundIds: Set<Int>,
-    val clickUpgradeLevel: Int, val catLevel: Int, val snowmanCooldownEnd: Long
+    val clickUpgradeLevel: Int, val catLevel: Int, val snowmanCooldownEnd: Long,
+    val graphicsQuality: GraphicsQuality
 )
 
 object GameStorage {
@@ -251,11 +191,11 @@ object GameStorage {
     fun load(context: Context): GameSaveData {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return GameSaveData(
-            prefs.getFloat("snowflakes", 0f).toDouble(), prefs.getInt("street_tree_level", 0), prefs.getInt("room_tree_level", 0),
-            prefs.getInt("cat_satiety", 100), prefs.getLong("last_update_time", 0L),
-            prefs.getString("last_daily_reward_day", "") ?: "", prefs.getInt("bowl_level", 0),
-            prefs.getStringSet("purchased_outfits", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
-            prefs.getInt("current_outfit_id", 0), prefs.getLong("donate_balance", 0L),
+            snowflakes = prefs.getFloat("snowflakes", 0f).toDouble(), roomTreeLevel = prefs.getInt("street_tree_level", 0), streetTreeLevel = prefs.getInt("room_tree_level", 0),
+            catSatiety = prefs.getInt("cat_satiety", 100), lastUpdateTime = prefs.getLong("last_update_time", 0L),
+            lastDailyRewardDay = prefs.getString("last_daily_reward_day", "") ?: "", bowlLevel = prefs.getInt("bowl_level", 0),
+            purchasedOutfitIds = prefs.getStringSet("purchased_outfits", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
+            currentOutfitId = prefs.getInt("current_outfit_id", 0), donateBalance = prefs.getLong("donate_balance", 0L),
             isMusicEnabled = prefs.getBoolean("is_music_enabled", true),
             isSfxEnabled = prefs.getBoolean("is_sfx_enabled", true),
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
@@ -266,7 +206,8 @@ object GameStorage {
             purchasedBackgroundIds = prefs.getStringSet("purchased_backgrounds", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
             clickUpgradeLevel = prefs.getInt("click_upgrade_level", 1),
             catLevel = prefs.getInt("cat_level", 0),
-            snowmanCooldownEnd = prefs.getLong("snowman_cooldown", 0L)
+            snowmanCooldownEnd = prefs.getLong("snowman_cooldown", 0L),
+            graphicsQuality = GraphicsQuality.fromString(prefs.getString("graphics_quality", "HIGH"))
         )
     }
     fun save(context: Context, data: GameSaveData) {
@@ -285,6 +226,7 @@ object GameStorage {
             .putInt("click_upgrade_level", data.clickUpgradeLevel)
             .putInt("cat_level", data.catLevel)
             .putLong("snowman_cooldown", data.snowmanCooldownEnd)
+            .putString("graphics_quality", data.graphicsQuality.name)
             .apply()
     }
 }
@@ -299,7 +241,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     val savedState = remember { GameStorage.load(context) }
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
 
-    // Состояния
     var snowflakes by remember { mutableStateOf(savedState.snowflakes) }
     var roomTreeLevel by remember { mutableIntStateOf(savedState.roomTreeLevel) }
     var streetTreeLevel by remember { mutableIntStateOf(savedState.streetTreeLevel) }
@@ -315,8 +256,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var snowmanCooldownEnd by remember { mutableLongStateOf(savedState.snowmanCooldownEnd) }
     var currentRoomBackground by remember { mutableIntStateOf(savedState.currentBackgroundId) }
     var purchasedBackgrounds by remember { mutableStateOf(savedState.purchasedBackgroundIds) }
+    var graphicsQuality by remember { mutableStateOf(savedState.graphicsQuality) }
 
-    // Настройки звука
     var isMusicEnabled by remember { mutableStateOf(savedState.isMusicEnabled) }
     var isSfxEnabled by remember { mutableStateOf(savedState.isSfxEnabled) }
     var isVibrationEnabled by remember { mutableStateOf(savedState.isVibrationEnabled) }
@@ -324,7 +265,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var sfxVolume by remember { mutableFloatStateOf(savedState.sfxVolume) }
     var snowIntensity by remember { mutableFloatStateOf(savedState.snowIntensity) }
 
-    // Окна
     var isWardrobeOpen by remember { mutableStateOf(false) }
     var isShopOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
@@ -334,7 +274,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var lightsMode by remember { mutableIntStateOf(0) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
-    // Расчет экономики
     val currentSnapshot = remember(roomTreeLevel, streetTreeLevel, clickUpgradeLevel, catLevel, boughtOutfitIds, isDonateActive) {
         calculateGameEconomy(roomTreeLevel, streetTreeLevel, clickUpgradeLevel, catLevel, boughtOutfitIds, isDonateActive)
     }
@@ -346,28 +285,26 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             boughtOutfitIds, currentOutfitId, 0L,
             isMusicEnabled, isSfxEnabled, isVibrationEnabled, musicVolume, sfxVolume, snowIntensity,
             currentRoomBackground, purchasedBackgrounds,
-            clickUpgradeLevel, catLevel, snowmanCooldownEnd
+            clickUpgradeLevel, catLevel, snowmanCooldownEnd, graphicsQuality
         ))
     }
 
     fun showToast(msg: String) { toastMessage = msg }
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(3000); toastMessage = null } }
 
-    // Главный тик
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
             snowflakes += currentSnapshot.totalCps
-            if (System.currentTimeMillis() % 10000 < 1000) persistGameState() // Автосейв каждые 10 сек
+            if (System.currentTimeMillis() % 10000 < 1000) persistGameState()
         }
     }
 
-    // ЗВУКИ
     val soundPool = remember { 
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
-    val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) }
+    val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) } // Касса в файле fireplace
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var fireplacePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -402,7 +339,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         try {
             if (currentTab == GameTab.ROOM && isSfxEnabled) {
                 if (fireplacePlayer == null) {
-                    fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
+                    fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply { // Камин в файле cash_register
                         isLooping = true; setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f); start()
                     }
                 } else { fireplacePlayer?.start() }
@@ -434,9 +371,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     val isRoomTab = currentTab == GameTab.ROOM
     val isSnowmanReady = System.currentTimeMillis() >= snowmanCooldownEnd
 
-    // ==========================================
-    // UI
-    // ==========================================
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(
             Brush.verticalGradient(
@@ -450,6 +384,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val w = maxWidth
         val h = maxHeight
 
+        // СЛОЙ 0: Фон
         if (isRoomTab) {
             val currentBg = ALL_BACKGROUNDS.find { it.id == currentRoomBackground } ?: ALL_BACKGROUNDS[0]
             RoomInteriorScenery(wallColor = currentBg.wallColor)
@@ -457,10 +392,11 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             StreetExteriorScenery()
         }
         
-        SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
+        // СЛОЙ 1: Задний снег
+        SnowfallLayer(isForeground = false, quality = graphicsQuality, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
+        // СЛОЙ 2: Игровые объекты
         if (!isRoomTab) {
-            // УЛИЦА
             Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.12f, bottom = h * 0.18f).scale(tabletScale)) {
                 HolidayHostsBackground(currentOutfit = ALL_OUTFITS.find { it.id == currentOutfitId } ?: ALL_OUTFITS[0], onHostClick = { vibrate(); showToast("С Новым Годом! 🎄") })
             }
@@ -499,11 +435,9 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                     }
                 }, clickPower = (currentSnapshot.clickPower * 5).toInt(), isReady = isSnowmanReady)
             }
-            SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
         }
 
         if (isRoomTab) {
-            // КОМНАТА
             Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.92f else 0.88f).padding(bottom = 20.dp).scale(0.70f * tabletScale), contentAlignment = Alignment.BottomCenter) {
                 ChristmasTree25D(isRoom = true, treeLevel = roomTreeLevel, garlandMode = lightsMode, onTreeClick = {
                     vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
@@ -565,7 +499,10 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             }
         }
 
-        // ВЕРХНИЕ ПАНЕЛИ
+        // СЛОЙ 3: Передний снег
+        SnowfallLayer(isForeground = true, quality = graphicsQuality, intensity = snowIntensity * 1.4f)
+
+        // СЛОЙ 4: UI Overlay
         DailyRewardButton(isClaimedToday = false, onClaimReward = {
             vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
             snowflakes += 100.0; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") 
@@ -588,7 +525,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         // ДИАЛОГИ
         if (isShopOpen) {
             ShopDialog(snowflakes = snowflakes.toLong(), clickPower = clickUpgradeLevel, onDismiss = { isShopOpen = false }, onBuyItem = { itemIndex, cost ->
-                // Адаптация старого магазина под новые реалии (покупка кликов и кота перенесена в основной UI, здесь оставлены снежинки для совместимости)
                 showToast("Покупки перенесены на главный экран!")
             })
         }
@@ -637,7 +573,56 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 }
 
 // ==========================================
-// 5. ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ (ВИЗУАЛ)
+// 5. КОМПОНЕНТЫ СНЕГА
+// ==========================================
+data class SnowParticle(var x: Float, var y: Float, val speed: Float, val radius: Float)
+
+@Composable
+fun SnowfallLayer(isForeground: Boolean, quality: GraphicsQuality, intensity: Float = 1.0f, modifier: Modifier = Modifier) {
+    val shouldRender = when (quality) {
+        GraphicsQuality.LOW -> false
+        GraphicsQuality.MEDIUM -> !isForeground
+        GraphicsQuality.HIGH -> true
+    }
+    if (!shouldRender) return
+
+    val baseCount = if (isForeground) 15 else 35
+    val particleCount = (baseCount * intensity.coerceIn(0.5f, 2.0f)).toInt()
+
+    val particles = remember(isForeground) {
+        List(particleCount) {
+            SnowParticle(
+                x = Random.nextFloat(), y = Random.nextFloat(),
+                speed = Random.nextFloat() * 0.002f + 0.0005f,
+                radius = if (isForeground) Random.nextFloat() * 5f + 3f else Random.nextFloat() * 2.5f + 1f
+            )
+        }
+    }
+
+    var frameTrigger by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos { time ->
+                particles.forEach { p ->
+                    p.y += p.speed
+                    if (p.y > 1f) { p.y = 0f; p.x = Random.nextFloat() }
+                }
+                frameTrigger = time
+            }
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val w = size.width; val h = size.height; val alpha = if (isForeground) 0.75f else 0.35f
+        @Suppress("UNUSED_VARIABLE") val trigger = frameTrigger
+        particles.forEach { p ->
+            drawCircle(Color.White.copy(alpha = alpha), p.radius, Offset(p.x * w, p.y * h))
+        }
+    }
+}
+
+// ==========================================
+// 6. ВИЗУАЛЬНЫЕ КОМПОНЕНТЫ (СТАРЫЕ)
 // ==========================================
 
 @Composable
@@ -952,25 +937,6 @@ fun StreetExteriorScenery() {
 }
 
 @Composable
-fun SnowfallLayer(isForeground: Boolean, intensity: Float = 1.0f, modifier: Modifier = Modifier) {
-    val duration = if (isForeground) 5500 else 11000
-    val transition = rememberInfiniteTransition(label = "SnowLayer")
-    val cycleProgress by transition.animateFloat(initialValue = 0f, targetValue = 1f, animationSpec = infiniteRepeatable(animation = tween(durationMillis = duration, easing = LinearEasing), repeatMode = RepeatMode.Restart), label = "SnowFallingCycle")
-    val flakes = remember(isForeground) {
-        val count = if (isForeground) 28 else 55
-        List(count) { Snowflake(xNorm = Random.nextFloat(), yOffsetNorm = Random.nextFloat(), speed = 0.25f + Random.nextFloat() * 0.45f, radius = 1.0f + Random.nextFloat() * 1.8f, swayFrequency = 0.8f + Random.nextFloat() * 1.5f, swayAmplitude = 5f + Random.nextFloat() * 10f, alpha = 0.25f + Random.nextFloat() * 0.35f) }
-    }
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val w = size.width; val h = size.height; val activeCount = (flakes.size * intensity.coerceIn(0.2f, 2.0f)).toInt().coerceIn(6, flakes.size)
-        for (i in 0 until activeCount) {
-            val flake = flakes[i]; val currentY = ((flake.yOffsetNorm + cycleProgress * flake.speed) % 1f) * h; val sway = sin((cycleProgress * 2 * PI.toFloat() * flake.swayFrequency) + flake.xNorm * 10f) * flake.swayAmplitude; val currentX = (flake.xNorm * w + sway).mod(w)
-            drawCircle(color = Color.White.copy(alpha = flake.alpha), radius = flake.radius, center = Offset(currentX, currentY))
-        }
-    }
-}
-private data class Snowflake(val xNorm: Float, val yOffsetNorm: Float, val speed: Float, val radius: Float, val swayFrequency: Float, val swayAmplitude: Float, val alpha: Float)
-
-@Composable
 fun GameBottomNavigationBar(currentTab: GameTab, onTabSelected: (GameTab) -> Unit, modifier: Modifier = Modifier) {
     Surface(modifier = modifier.padding(bottom = 12.dp).shadow(12.dp, RoundedCornerShape(30.dp)), shape = RoundedCornerShape(30.dp), color = NightSurface.copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f))) {
         Row(modifier = Modifier.wrapContentWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -1036,7 +1002,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 8.0 • Новый баланс 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 9.0 • Слои и графика 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
