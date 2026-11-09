@@ -130,6 +130,8 @@ val ALL_OUTFITS = listOf(
     Outfit(19, "Легенда Нового Года", "🔥", CurrencyType.DONATE, 1499L, 300000)
 )
 
+data class ShopItem(val name: String, val emoji: String, val cost: Long, val description: String)
+
 enum class GameTab(val label: String, val icon: ImageVector) {
     ROOM("Комната", Icons.Filled.Home),
     STREET("Улица", Icons.Filled.AcUnit)
@@ -856,13 +858,19 @@ fun ShopDialog(snowflakes: Long, clickPower: Int, onDismiss: () -> Unit, onBuyIt
                 
                 val costClick = calculateStreetTreeCost(clickPower)
                 
+                // Исправленный блок магазина
                 val items = listOf(
-                    Triple("Корм для кота", "🐟", 15L) to "+30% к сытости котика",
-                    Triple("Сила клика", "👆", costClick) to "+1 к снежинкам за клик"
+                    ShopItem("Корм для кота", "🐟", 15L, "+30% к сытости котика"),
+                    ShopItem("Сила клика", "👆", costClick, "+1 к снежинкам за клик")
                 )
+                
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items.forEachIndexed { index, (itemData, description) ->
-                        val (name, emoji, cost) = itemData
+                    items.forEachIndexed { index, item ->
+                        val name = item.name
+                        val emoji = item.emoji
+                        val cost = item.cost
+                        val description = item.description
+                        
                         val canAfford = snowflakes >= cost
                         Column(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(NightSurfaceVariant).border(1.2.dp, if (canAfford) GoldAccent.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = emoji, fontSize = 24.sp); Spacer(modifier = Modifier.height(4.dp)); Text(text = name, color = SnowWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(2.dp)); Text(text = description, color = SnowSoft.copy(alpha = 0.75f), fontSize = 8.sp, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(8.dp))
