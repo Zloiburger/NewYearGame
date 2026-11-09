@@ -1,0 +1,6 @@
+{
+  "name": "Новогодняя Сказка",
+  "description": "Уютный новогодний симулятор с ёлкой, снегом, спящим котом и Снегурочкой в альбомной ориентации.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
