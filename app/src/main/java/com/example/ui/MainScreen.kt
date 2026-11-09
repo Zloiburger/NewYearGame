@@ -226,7 +226,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
-    val cashSoundId = remember { soundPool.load(context, R.raw.cash_register, 1) }
+    // ИСПРАВЛЕНИЕ: Звук покупки берем из файла fireplace (там лежит звук кассы)
+    val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) }
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var fireplacePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -272,7 +273,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     LaunchedEffect(currentTab, isSfxEnabled) {
         if (currentTab == GameTab.ROOM && isSfxEnabled) {
             if (fireplacePlayer == null) {
-                fireplacePlayer = MediaPlayer.create(context, R.raw.fireplace)?.apply {
+                // ИСПРАВЛЕНИЕ: Звук камина берем из файла cash_register (там лежит треск дров)
+                fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
                     isLooping = true; setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f); start()
                 }
             } else { fireplacePlayer?.start() }
@@ -286,9 +288,11 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
                 persistGameState()
                 mediaPlayer?.pause(); fireplacePlayer?.pause()
+                soundPool.autoPause() // ФИКС ОТ АЛИСЫ
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 if (isMusicEnabled) mediaPlayer?.start()
                 if (currentTab == GameTab.ROOM && isSfxEnabled) fireplacePlayer?.start()
+                soundPool.autoResume() // ФИКС ОТ АЛИСЫ
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -360,6 +364,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     ) {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
+        val w = maxWidth
+        val h = maxHeight
 
         if (isRoomTab) {
             val currentBg = ALL_BACKGROUNDS.find { it.id == currentBackgroundId } ?: ALL_BACKGROUNDS[0]
@@ -371,7 +377,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
         if (!isRoomTab) {
-            Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = if (isTablet) 72.dp else 56.dp, bottom = if (isTablet) 96.dp else 84.dp).scale(tabletScale)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.12f, bottom = h * 0.18f).scale(tabletScale)) {
                 HolidayHostsBackground(currentOutfit = ALL_OUTFITS.find { it.id == currentOutfitId } ?: ALL_OUTFITS[0], onHostClick = { vibrate(); showToast("С Новым Годом! 🎄") })
             }
 
@@ -382,7 +388,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 })
             }
 
-            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (isTablet) 115.dp else 102.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.22f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF1C1335).copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.7f)), shadowElevation = 4.dp, modifier = Modifier.padding(end = 6.dp)) {
                     Text(text = "Ур. $streetTreeLevel / 30", color = GoldAccent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
@@ -409,7 +415,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 })
             }
 
-            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (isTablet) 115.dp else 102.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.22f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 val roomCost = calculateRoomTreeCost(roomTreeLevel)
                 val canUpgradeRoom = snowflakesState.longValue >= roomCost && roomTreeLevel < 15
                 Surface(shape = RoundedCornerShape(16.dp), color = if (canUpgradeRoom) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent), shadowElevation = 6.dp, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
@@ -425,7 +431,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 }
             }
 
-            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 24.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
+            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.05f, bottom = h * 0.18f).scale(tabletScale)) {
                 InteractiveCat(isRoom = true, satiety = catSatiety, isAwake = isCatAwake, plusOneTrigger = catPlusOneTrigger, bowlLevel = bowlLevel, canUpgradeBowl = snowflakesState.longValue >= calculateStreetTreeCost(bowlLevel), onUpgradeBowl = {
                     val cost = calculateStreetTreeCost(bowlLevel)
                     if (snowflakesState.longValue >= cost) { 
@@ -439,29 +445,31 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 }, clickPower = clickPower)
             }
 
-            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 60.dp, bottom = 140.dp)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.06f, bottom = h * 0.20f)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Surface(shape = RoundedCornerShape(8.dp), color = Color.Black, border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray), modifier = Modifier.size(70.dp, 50.dp).clickable { vibrate(); isTvOpen = true }) { Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 30.sp) } }
                     Box(modifier = Modifier.width(100.dp).height(15.dp).background(Color(0xFF5C3A21), RoundedCornerShape(4.dp)))
                 }
             }
 
-            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 40.dp, top = 100.dp)) {
+            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = w * 0.03f, top = h * 0.15f)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(50.dp, 60.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
+                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(40.dp, 50.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(modifier = Modifier.fillMaxWidth().height(15.dp).background(Color.Red))
-                            Text("31", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Box(modifier = Modifier.fillMaxWidth().height(12.dp).background(Color.Red))
+                            Text("31", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(modifier = Modifier.width(120.dp).height(90.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) { Text("🔥", fontSize = 40.sp, modifier = Modifier.padding(bottom = 10.dp)) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(modifier = Modifier.width(100.dp).height(70.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) {
+                        Text("🔥", fontSize = 30.sp, modifier = Modifier.padding(bottom = 5.dp))
+                    }
                 }
             }
         }
 
         if (!isRoomTab) {
-            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 28.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
+            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.05f, bottom = h * 0.18f).scale(tabletScale)) {
                 InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { vibrate(); snowflakesState.longValue += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() }, clickPower = clickPower)
             }
             SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
@@ -939,7 +947,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 6.0 • Альбом и Меню 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 6.2 • Звуки и UI исправлены 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
