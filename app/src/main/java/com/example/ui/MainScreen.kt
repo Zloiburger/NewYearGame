@@ -258,14 +258,15 @@ fun MainScreen() {
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
     val clickSoundId = remember { soundPool.load(context, R.raw.click, 1) }
-    val coinSoundId = remember { soundPool.load(context, R.raw.coin, 1) }
+    // Используем кассу вместо монетки
+    val coinSoundId = remember { soundPool.load(context, R.raw.cash_register, 1) }
     val cashSoundId = remember { soundPool.load(context, R.raw.cash_register, 1) }
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var fireplacePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     
-    // Добавили music6
-    val musicPlaylist = remember { listOf(R.raw.music1, R.raw.music2, R.raw.music3, R.raw.music4, R.raw.music5, R.raw.music6) }
+    // Убрали music6
+    val musicPlaylist = remember { listOf(R.raw.music1, R.raw.music2, R.raw.music3, R.raw.music4, R.raw.music5) }
     var currentSongIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(isMusicEnabled, currentSongIndex) {
