@@ -119,7 +119,6 @@ data class GameSaveData(
     val snowflakes: Long, val streetTreeLevel: Int, val roomTreeLevel: Int, val catSatiety: Int,
     val lastUpdateTime: Long, val lastDailyRewardDay: String, val bowlLevel: Int, val clickPower: Int,
     val purchasedOutfitIds: Set<Int>, val currentOutfitId: Int, val donateBalance: Long,
-    // ДОБАВИЛИ НАСТРОЙКИ
     val isMusicEnabled: Boolean, val isSfxEnabled: Boolean, val isVibrationEnabled: Boolean,
     val musicVolume: Float, val sfxVolume: Float, val snowIntensity: Float
 )
@@ -134,7 +133,6 @@ object GameStorage {
             prefs.getString("last_daily_reward_day", "") ?: "", prefs.getInt("bowl_level", 0),
             prefs.getInt("click_power", 1), prefs.getStringSet("purchased_outfits", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
             prefs.getInt("current_outfit_id", 0), prefs.getLong("donate_balance", 0L),
-            // ЗАГРУЖАЕМ НАСТРОЙКИ
             isMusicEnabled = prefs.getBoolean("is_music_enabled", true),
             isSfxEnabled = prefs.getBoolean("is_sfx_enabled", true),
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
@@ -151,7 +149,6 @@ object GameStorage {
             .putInt("bowl_level", data.bowlLevel).putInt("click_power", data.clickPower)
             .putStringSet("purchased_outfits", data.purchasedOutfitIds.map { it.toString() }.toSet())
             .putInt("current_outfit_id", data.currentOutfitId).putLong("donate_balance", data.donateBalance)
-            // СОХРАНЯЕМ НАСТРОЙКИ
             .putBoolean("is_music_enabled", data.isMusicEnabled).putBoolean("is_sfx_enabled", data.isSfxEnabled)
             .putBoolean("is_vibration_enabled", data.isVibrationEnabled).putFloat("music_volume", data.musicVolume)
             .putFloat("sfx_volume", data.sfxVolume).putFloat("snow_intensity", data.snowIntensity)
@@ -159,33 +156,16 @@ object GameStorage {
     }
 }
 
-@Composable
-fun SplashScreen(onTimeout: () -> Unit) {
-    LaunchedEffect(Unit) { delay(2000); onTimeout() }
-    Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0D1321), Color(0xFF131D31)))), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "🎄", fontSize = 80.sp, modifier = Modifier.scale(1.2f))
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Новогодняя Сказка", color = GoldAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Загрузка волшебства...", color = SnowSoft, fontSize = 14.sp)
-        }
-    }
-}
-
 // ==========================================
 // 3. ГЛАВНЫЙ ЭКРАН
 // ==========================================
 @Composable
-fun MainScreen() {
+fun MainScreen(onExitToMenu: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val savedState = remember { GameStorage.load(context) }
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
 
-    var showSplash by remember { mutableStateOf(true) }
-    
-    // АЛИСА СОВЕТУЕТ: Изолируем счетчик, чтобы он не перерисовывал весь экран
     val snowflakesState = remember { mutableLongStateOf(savedState.snowflakes) }
     var donateBalance by remember { mutableLongStateOf(savedState.donateBalance) }
     var streetTreeLevel by remember { mutableIntStateOf(savedState.streetTreeLevel) }
@@ -197,7 +177,6 @@ fun MainScreen() {
     var purchasedOutfits by remember { mutableStateOf(savedState.purchasedOutfitIds) }
     var currentOutfitId by remember { mutableIntStateOf(savedState.currentOutfitId) }
 
-    // Настройки из сохранений
     var isMusicEnabled by remember { mutableStateOf(savedState.isMusicEnabled) }
     var isSfxEnabled by remember { mutableStateOf(savedState.isSfxEnabled) }
     var isVibrationEnabled by remember { mutableStateOf(savedState.isVibrationEnabled) }
@@ -209,7 +188,6 @@ fun MainScreen() {
     val baseIncome = roomTreeLevel + streetTreeLevel + bowlLevel
     val effectiveIncomeRate = baseIncome + outfitsIncome
 
-    // АЛИСА СОВЕТУЕТ: Вычисляем дату каждый раз, чтобы подарок сбрасывался в полночь
     var currentDateStr by remember { mutableStateOf(getTodayDateStr()) }
 
     var isWardrobeOpen by remember { mutableStateOf(false) }
@@ -253,7 +231,6 @@ fun MainScreen() {
         ))
     }
 
-    // АЛИСА СОВЕТУЕТ: Не пересоздаем плеер при смене громкости
     LaunchedEffect(isMusicEnabled, currentSongIndex) {
         if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
             mediaPlayer?.release()
@@ -267,7 +244,6 @@ fun MainScreen() {
         }
     }
 
-    // АЛИСА СОВЕТУЕТ: Меняем громкость на лету
     LaunchedEffect(musicVolume) {
         mediaPlayer?.setVolume(musicVolume, musicVolume)
     }
@@ -282,7 +258,6 @@ fun MainScreen() {
         } else { fireplacePlayer?.pause() }
     }
 
-    // АЛИСА СОВЕТУЕТ: Меняем громкость камина на лету
     LaunchedEffect(sfxVolume) {
         fireplacePlayer?.setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f)
     }
@@ -309,7 +284,6 @@ fun MainScreen() {
     fun showToast(msg: String) { toastMessage = msg }
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(3000); toastMessage = null } }
 
-    // Оффлайн доход
     LaunchedEffect(Unit) {
         val now = System.currentTimeMillis()
         val lastTime = savedState.lastUpdateTime
@@ -326,7 +300,6 @@ fun MainScreen() {
         persistGameState()
     }
 
-    // Главный тикер
     LaunchedEffect(Unit) {
         var tickCounter = 0
         while (true) {
@@ -340,7 +313,6 @@ fun MainScreen() {
                 catSatiety = (catSatiety - 1).coerceAtLeast(0)
             }
             
-            // Проверяем, не наступил ли новый день
             if (tickCounter % 60 == 0) {
                 val newDate = getTodayDateStr()
                 if (newDate != currentDateStr) currentDateStr = newDate
@@ -558,7 +530,8 @@ fun MainScreen() {
                 isVibrationEnabled, onVibrationToggle = { isVibrationEnabled = it },
                 musicVolume, onMusicVolumeChange = { musicVolume = it },
                 sfxVolume, onSfxVolumeChange = { sfxVolume = it },
-                onDismiss = { isSettingsOpen = false; persistGameState() }
+                onDismiss = { isSettingsOpen = false; persistGameState() },
+                onExitToMenu = onExitToMenu // <-- ПЕРЕДАЕМ ПАРАМЕТР
             )
         }
 
@@ -575,8 +548,6 @@ fun MainScreen() {
                 }
             }
         }
-
-        if (showSplash) { SplashScreen(onTimeout = { showSplash = false }) }
     }
 }
 
@@ -908,7 +879,8 @@ fun SettingsDialog(
     isVibrationEnabled: Boolean, onVibrationToggle: (Boolean) -> Unit,
     musicVolume: Float, onMusicVolumeChange: (Float) -> Unit,
     sfxVolume: Float, onSfxVolumeChange: (Float) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExitToMenu: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.4f)), modifier = Modifier.fillMaxWidth(0.9f).padding(12.dp)) {
@@ -940,8 +912,19 @@ fun SettingsDialog(
                 Text(text = "Интенсивность снега: ${(snowIntensity * 100).toInt()}%", color = SnowWhite, fontSize = 12.sp)
                 Slider(value = snowIntensity, onValueChange = onIntensityChange, valueRange = 0.5f..2.0f, colors = SliderDefaults.colors(thumbColor = SnowSoft, activeTrackColor = SnowSoft.copy(alpha = 0.5f)))
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Кнопка выхода в меню
+                Button(
+                    onClick = { onDismiss(); onExitToMenu() }, 
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B1E32)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("В главное меню", color = SnowWhite)
+                }
+                
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 4.2 • Фиксы от Алисы 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 5.0 • Меню и Сюжет 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
