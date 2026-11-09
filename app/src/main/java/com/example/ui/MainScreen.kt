@@ -45,12 +45,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,14 +60,16 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
 // ==========================================
-// 1. МАТЕМАТИКА И МОДЕЛИ (ОТ GEMINI)
+// 1. МАТЕМАТИКА И МОДЕЛИ (ЭТАЛОН)
 // ==========================================
 fun formatNumber(number: Long): String {
     return when {
@@ -173,7 +175,7 @@ fun EmojiOrImage(emoji: String, imageRes: Int? = null, modifier: Modifier = Modi
 }
 
 // ==========================================
-// 3. СОХРАНЕНИЯ (ОБЪЕДИНЕННЫЕ)
+// 3. СОХРАНЕНИЯ
 // ==========================================
 data class GameSaveData(
     val snowflakes: Double, val roomTreeLevel: Int, val streetTreeLevel: Int, val catSatiety: Int,
@@ -191,11 +193,16 @@ object GameStorage {
     fun load(context: Context): GameSaveData {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return GameSaveData(
-            snowflakes = prefs.getFloat("snowflakes", 0f).toDouble(), roomTreeLevel = prefs.getInt("street_tree_level", 0), streetTreeLevel = prefs.getInt("room_tree_level", 0),
-            catSatiety = prefs.getInt("cat_satiety", 100), lastUpdateTime = prefs.getLong("last_update_time", 0L),
-            lastDailyRewardDay = prefs.getString("last_daily_reward_day", "") ?: "", bowlLevel = prefs.getInt("bowl_level", 0),
+            snowflakes = prefs.getFloat("snowflakes", 0f).toDouble(), 
+            roomTreeLevel = prefs.getInt("room_tree_level", 0), 
+            streetTreeLevel = prefs.getInt("street_tree_level", 0),
+            catSatiety = prefs.getInt("cat_satiety", 100), 
+            lastUpdateTime = prefs.getLong("last_update_time", 0L),
+            lastDailyRewardDay = prefs.getString("last_daily_reward_day", "") ?: "", 
+            bowlLevel = prefs.getInt("bowl_level", 0),
             purchasedOutfitIds = prefs.getStringSet("purchased_outfits", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
-            currentOutfitId = prefs.getInt("current_outfit_id", 0), donateBalance = prefs.getLong("donate_balance", 0L),
+            currentOutfitId = prefs.getInt("current_outfit_id", 0), 
+            donateBalance = prefs.getLong("donate_balance", 0L),
             isMusicEnabled = prefs.getBoolean("is_music_enabled", true),
             isSfxEnabled = prefs.getBoolean("is_sfx_enabled", true),
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
@@ -212,15 +219,22 @@ object GameStorage {
     }
     fun save(context: Context, data: GameSaveData) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putFloat("snowflakes", data.snowflakes.toFloat()).putInt("street_tree_level", data.streetTreeLevel)
-            .putInt("room_tree_level", data.roomTreeLevel).putInt("cat_satiety", data.catSatiety)
-            .putLong("last_update_time", data.lastUpdateTime).putString("last_daily_reward_day", data.lastDailyRewardDay)
-            .putInt("bowl_level", data.bowlLevel).putInt("click_power", data.clickUpgradeLevel)
+            .putFloat("snowflakes", data.snowflakes.toFloat())
+            .putInt("room_tree_level", data.roomTreeLevel)
+            .putInt("street_tree_level", data.streetTreeLevel)
+            .putInt("cat_satiety", data.catSatiety)
+            .putLong("last_update_time", data.lastUpdateTime)
+            .putString("last_daily_reward_day", data.lastDailyRewardDay)
+            .putInt("bowl_level", data.bowlLevel)
             .putStringSet("purchased_outfits", data.purchasedOutfitIds.map { it.toString() }.toSet())
-            .putInt("current_outfit_id", data.currentOutfitId).putLong("donate_balance", data.donateBalance)
-            .putBoolean("is_music_enabled", data.isMusicEnabled).putBoolean("is_sfx_enabled", data.isSfxEnabled)
-            .putBoolean("is_vibration_enabled", data.isVibrationEnabled).putFloat("music_volume", data.musicVolume)
-            .putFloat("sfx_volume", data.sfxVolume).putFloat("snow_intensity", data.snowIntensity)
+            .putInt("current_outfit_id", data.currentOutfitId)
+            .putLong("donate_balance", data.donateBalance)
+            .putBoolean("is_music_enabled", data.isMusicEnabled)
+            .putBoolean("is_sfx_enabled", data.isSfxEnabled)
+            .putBoolean("is_vibration_enabled", data.isVibrationEnabled)
+            .putFloat("music_volume", data.musicVolume)
+            .putFloat("sfx_volume", data.sfxVolume)
+            .putFloat("snow_intensity", data.snowIntensity)
             .putInt("current_background_id", data.currentBackgroundId)
             .putStringSet("purchased_backgrounds", data.purchasedBackgroundIds.map { it.toString() }.toSet())
             .putInt("click_upgrade_level", data.clickUpgradeLevel)
@@ -232,7 +246,7 @@ object GameStorage {
 }
 
 // ==========================================
-// 4. ГЛАВНЫЙ ЭКРАН
+// 4. ГЛАВНЫЙ ЭКРАН (MainScreen)
 // ==========================================
 @Composable
 fun MainScreen(onExitToMenu: () -> Unit) {
@@ -246,6 +260,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var streetTreeLevel by remember { mutableIntStateOf(savedState.streetTreeLevel) }
     var clickUpgradeLevel by remember { mutableIntStateOf(savedState.clickUpgradeLevel) }
     var catLevel by remember { mutableIntStateOf(savedState.catLevel) }
+    var catSatiety by remember { mutableIntStateOf(savedState.catSatiety) }
     var boughtOutfitIds by remember { mutableStateOf(savedState.purchasedOutfitIds) }
     var currentOutfitId by remember { mutableIntStateOf(savedState.currentOutfitId) }
     
@@ -264,6 +279,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var musicVolume by remember { mutableFloatStateOf(savedState.musicVolume) }
     var sfxVolume by remember { mutableFloatStateOf(savedState.sfxVolume) }
     var snowIntensity by remember { mutableFloatStateOf(savedState.snowIntensity) }
+    var lastDailyRewardDay by remember { mutableStateOf(savedState.lastDailyRewardDay) }
 
     var isWardrobeOpen by remember { mutableStateOf(false) }
     var isShopOpen by remember { mutableStateOf(false) }
@@ -280,8 +296,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 
     fun persistGameState() {
         GameStorage.save(context, GameSaveData(
-            snowflakes, streetTreeLevel, roomTreeLevel, 100,
-            System.currentTimeMillis(), "", 0,
+            snowflakes, roomTreeLevel, streetTreeLevel, catSatiety,
+            System.currentTimeMillis(), lastDailyRewardDay, 0,
             boughtOutfitIds, currentOutfitId, 0L,
             isMusicEnabled, isSfxEnabled, isVibrationEnabled, musicVolume, sfxVolume, snowIntensity,
             currentRoomBackground, purchasedBackgrounds,
@@ -304,7 +320,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
-    val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) } // Касса в файле fireplace
+    val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) } 
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var fireplacePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -322,36 +338,44 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
-    LaunchedEffect(isMusicEnabled, currentSongIndex) {
-        try {
-            if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
-                mediaPlayer?.release()
-                mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
-                    setVolume(musicVolume, musicVolume)
-                    setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
-                    start()
-                }
-            } else { mediaPlayer?.pause() }
-        } catch (e: Exception) {}
+    // Надежный запуск музыки БЕЗ try/catch внутри Compose
+    LaunchedEffect(isMusicEnabled, musicVolume, currentSongIndex) {
+        if (isMusicEnabled) {
+            mediaPlayer?.release()
+            mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
+                setVolume(musicVolume, musicVolume)
+                setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
+                start()
+            }
+        } else {
+            mediaPlayer?.pause()
+        }
     }
 
-    LaunchedEffect(currentTab, isSfxEnabled) {
-        try {
-            if (currentTab == GameTab.ROOM && isSfxEnabled) {
-                if (fireplacePlayer == null) {
-                    fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply { // Камин в файле cash_register
-                        isLooping = true; setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f); start()
-                    }
-                } else { fireplacePlayer?.start() }
-            } else { fireplacePlayer?.pause() }
-        } catch (e: Exception) {}
+    // Камин (звук из cash_register)
+    LaunchedEffect(currentTab, isSfxEnabled, sfxVolume) {
+        if (currentTab == GameTab.ROOM && isSfxEnabled) {
+            if (fireplacePlayer == null) {
+                fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
+                    isLooping = true
+                    setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
+                    start()
+                }
+            } else {
+                fireplacePlayer?.setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
+                fireplacePlayer?.start()
+            }
+        } else {
+            fireplacePlayer?.pause()
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> 
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
                 persistGameState()
-                mediaPlayer?.pause(); fireplacePlayer?.pause()
+                mediaPlayer?.pause()
+                fireplacePlayer?.pause()
                 soundPool.autoPause()
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 if (isMusicEnabled) mediaPlayer?.start()
@@ -362,14 +386,31 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { 
             lifecycleOwner.lifecycle.removeObserver(observer)
-            mediaPlayer?.stop(); mediaPlayer?.release()
-            fireplacePlayer?.stop(); fireplacePlayer?.release()
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            fireplacePlayer?.stop()
+            fireplacePlayer?.release()
             soundPool.release() 
         }
     }
 
     val isRoomTab = currentTab == GameTab.ROOM
     val isSnowmanReady = System.currentTimeMillis() >= snowmanCooldownEnd
+
+    val onSnowmanClick: () -> Unit = {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime >= snowmanCooldownEnd) {
+            vibrate()
+            if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+            snowflakes += (currentSnapshot.clickPower * 5)
+            snowmanCooldownEnd = currentTime + 3000L
+            persistGameState()
+            showToast("Бонус Снеговика! +${formatNumber((currentSnapshot.clickPower * 5).toLong())} ❄️")
+        }
+    }
+
+    val todayDateStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+    val isDailyRewardClaimedToday = lastDailyRewardDay == todayDateStr
 
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(
@@ -384,7 +425,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val w = maxWidth
         val h = maxHeight
 
-        // СЛОЙ 0: Фон
         if (isRoomTab) {
             val currentBg = ALL_BACKGROUNDS.find { it.id == currentRoomBackground } ?: ALL_BACKGROUNDS[0]
             RoomInteriorScenery(wallColor = currentBg.wallColor)
@@ -392,10 +432,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             StreetExteriorScenery()
         }
         
-        // СЛОЙ 1: Задний снег
         SnowfallLayer(isForeground = false, quality = graphicsQuality, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
-        // СЛОЙ 2: Игровые объекты
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.12f, bottom = h * 0.18f).scale(tabletScale)) {
                 HolidayHostsBackground(currentOutfit = ALL_OUTFITS.find { it.id == currentOutfitId } ?: ALL_OUTFITS[0], onHostClick = { vibrate(); showToast("С Новым Годом! 🎄") })
@@ -408,7 +446,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 })
             }
 
-            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.22f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.18f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF1C1335).copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.7f)), shadowElevation = 4.dp, modifier = Modifier.padding(end = 6.dp)) {
                     Text(text = "Ур. $streetTreeLevel / 30", color = GoldAccent, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
@@ -428,12 +466,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             }
             
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.05f, bottom = h * 0.18f).scale(tabletScale)) {
-                InteractiveSnowman(plusOneTrigger = 0, onSnowmanClick = { 
-                    if (isSnowmanReady) {
-                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                        snowflakes += (currentSnapshot.clickPower * 5); snowmanCooldownEnd = System.currentTimeMillis() + 3000L; persistGameState(); showToast("Бонус Снеговика! +${formatNumber((currentSnapshot.clickPower * 5).toLong())} ❄️")
-                    }
-                }, clickPower = (currentSnapshot.clickPower * 5).toInt(), isReady = isSnowmanReady)
+                InteractiveSnowman(plusOneTrigger = 0, onSnowmanClick = onSnowmanClick, clickPower = (currentSnapshot.clickPower * 5).toInt(), isReady = isSnowmanReady)
             }
         }
 
@@ -445,7 +478,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 })
             }
 
-            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.22f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.18f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 val roomCost = getRoomTreeCost(roomTreeLevel + 1)
                 val canUpgradeRoom = snowflakes >= roomCost && roomTreeLevel < 15
                 Surface(shape = RoundedCornerShape(16.dp), color = if (canUpgradeRoom) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent), shadowElevation = 6.dp, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
@@ -461,56 +494,107 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 }
             }
 
-            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = w * 0.05f, top = h * 0.45f)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(45.dp, 55.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).background(Color.Red))
-                            Text("31", color = Color.Black, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(modifier = Modifier.width(110.dp).height(80.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) {
-                        Text("🔥", fontSize = 35.sp, modifier = Modifier.padding(bottom = 5.dp))
-                    }
-                }
+            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = w * 0.05f, top = h * 0.35f)) {
+                FireplaceLarge()
             }
 
-            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.25f, bottom = h * 0.15f).scale(tabletScale)) {
-                InteractiveCat(isRoom = true, satiety = 100, isAwake = false, plusOneTrigger = 0, bowlLevel = catLevel, canUpgradeBowl = snowflakes >= getCatUpgradePrice(catLevel + 1), onUpgradeBowl = {
-                    val cost = getCatUpgradePrice(catLevel + 1)
-                    if (snowflakes >= cost) { 
-                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                        snowflakes -= cost; catLevel += 1; persistGameState(); showToast("Кот улучшен! 🥣✨ Ур. $catLevel") 
-                    } else showToast("Мало снежинок! Нужно ${formatNumber(cost)} ❄️")
-                }, onBowlClick = { vibrate(); showToast("Кормление пока не работает") }, onCatClick = {
-                    vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                    snowflakes += currentSnapshot.clickPower; persistGameState(); showToast("+${formatNumber(currentSnapshot.clickPower.toLong())} ❄️")
-                }, clickPower = currentSnapshot.clickPower.toInt())
-            }
-
-            Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = w * 0.1f)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = w * 0.08f, top = h * 0.25f)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CalendarWidget()
+                    
                     Surface(shape = RoundedCornerShape(8.dp), color = Color.Black, border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray), modifier = Modifier.size(75.dp, 55.dp).clickable { vibrate(); isTvOpen = true }) { 
                         Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 32.sp) } 
                     }
                     Box(modifier = Modifier.width(110.dp).height(15.dp).background(Color(0xFF5C3A21), RoundedCornerShape(4.dp)))
+                    
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    InteractiveCat(
+                        isRoom = true, 
+                        satiety = catSatiety, 
+                        isAwake = false, 
+                        plusOneTrigger = 0, 
+                        bowlLevel = catLevel, 
+                        canUpgradeBowl = false, 
+                        onUpgradeBowl = {}, 
+                        onBowlClick = { 
+                            if (snowflakes >= 15 && catSatiety < 100) {
+                                snowflakes -= 15
+                                catSatiety = (catSatiety + 30).coerceAtMost(100)
+                                persistGameState()
+                                showToast("Кот покормлен! 🐟")
+                            } else if (catSatiety >= 100) {
+                                showToast("Кот уже сыт!")
+                            } else {
+                                showToast("Нужно 15 ❄️ для корма!")
+                            }
+                        }, 
+                        onCatClick = {
+                            vibrate()
+                            if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                            snowflakes += currentSnapshot.clickPower
+                            persistGameState()
+                            showToast("+${formatNumber(currentSnapshot.clickPower.toLong())} ❄️")
+                        }, 
+                        clickPower = currentSnapshot.clickPower.toInt()
+                    )
                 }
             }
         }
 
-        // СЛОЙ 3: Передний снег
         SnowfallLayer(isForeground = true, quality = graphicsQuality, intensity = snowIntensity * 1.4f)
 
-        // СЛОЙ 4: UI Overlay
-        DailyRewardButton(isClaimedToday = false, onClaimReward = {
-            vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-            snowflakes += 100.0; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") 
-        }, modifier = Modifier.align(Alignment.TopStart).padding(top = 10.dp, start = 16.dp))
+        DailyRewardButton(
+            isClaimedToday = isDailyRewardClaimedToday, 
+            onClaimReward = {
+                if (!isDailyRewardClaimedToday) {
+                    vibrate()
+                    if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                    snowflakes += 100.0
+                    lastDailyRewardDay = todayDateStr
+                    persistGameState()
+                    showToast("Подарок получен! +100 ❄️ 🎁")
+                } else {
+                    showToast("Подарок уже получен сегодня! Загляните завтра 🎄")
+                }
+            }, 
+            modifier = Modifier.align(Alignment.TopStart).padding(top = 10.dp, start = 16.dp)
+        )
 
-        SnowflakeCounterTop(snowflakes = snowflakes.toLong(), incomeRate = currentSnapshot.totalCps.toInt(), donateBalance = 0, modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
+        Column(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            SnowflakeCounterTop(snowflakes = snowflakes.toLong(), incomeRate = currentSnapshot.totalCps.toInt(), donateBalance = 0)
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = NightSurface.copy(alpha = 0.85f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(text = "🐈 Сытость:", color = SnowWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.width(60.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF261D3B))) {
+                        val fillRatio = (catSatiety / 100f).coerceIn(0f, 1f)
+                        val barColor = when { catSatiety > 50 -> Color(0xFF52B788); catSatiety > 20 -> CozyAmber; else -> HolidayRed }
+                        Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fillRatio).background(barColor))
+                    }
+                    Text(text = "$catSatiety%", color = if (catSatiety > 20) SnowSoft else HolidayRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
 
-        Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 20.dp), 
+            verticalAlignment = Alignment.CenterVertically, 
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             if (isRoomTab) {
                 IconButton(onClick = { vibrate(); isBackgroundsOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, IceCyan.copy(alpha = 0.5f), CircleShape)) { Text(text = "🖼️", fontSize = 16.sp) }
             }
@@ -519,18 +603,101 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             IconButton(onClick = { vibrate(); isSettingsOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, IceCyan.copy(alpha = 0.3f), CircleShape)) { Icon(imageVector = Icons.Filled.Settings, contentDescription = "Настройки", tint = GoldAccent, modifier = Modifier.size(18.dp)) }
         }
 
-        GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
-        GameBottomNavigationBar(currentTab = currentTab, onTabSelected = { tab -> vibrate(); currentTab = tab }, modifier = Modifier.align(Alignment.BottomCenter))
+        GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 75.dp))
 
-        // ДИАЛОГИ
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 20.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = NightSurface.copy(alpha = 0.95f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldAccent.copy(alpha = 0.7f)),
+                shadowElevation = 8.dp,
+                modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable {
+                    vibrate()
+                    currentTab = if (currentTab == GameTab.ROOM) GameTab.STREET else GameTab.ROOM
+                }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isRoomTab) Icons.Filled.AcUnit else Icons.Filled.Home,
+                        contentDescription = null,
+                        tint = GoldAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = if (isRoomTab) "Улица" else "Комната",
+                        color = GoldAccent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         if (isShopOpen) {
-            ShopDialog(snowflakes = snowflakes.toLong(), clickPower = clickUpgradeLevel, onDismiss = { isShopOpen = false }, onBuyItem = { itemIndex, cost ->
-                showToast("Покупки перенесены на главный экран!")
-            })
+            ShopDialog(
+                snowflakes = snowflakes.toLong(), 
+                catLevel = catLevel, 
+                canUpgradeCat = snowflakes >= getCatUpgradePrice(catLevel + 1),
+                onUpgradeCat = {
+                    val cost = getCatUpgradePrice(catLevel + 1)
+                    if (snowflakes >= cost) {
+                        vibrate()
+                        if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                        snowflakes -= cost
+                        catLevel += 1
+                        persistGameState()
+                        showToast("Кот улучшен! Ур. $catLevel 🐱✨")
+                    } else {
+                        showToast("Нужно ${formatNumber(cost)} ❄️!")
+                    }
+                },
+                clickPower = clickUpgradeLevel, 
+                onDismiss = { isShopOpen = false }, 
+                onBuyItem = { itemIndex, _ ->
+                    if (itemIndex == 0) {
+                        if (snowflakes >= 15) {
+                            vibrate()
+                            snowflakes -= 15
+                            catSatiety = (catSatiety + 30).coerceAtMost(100)
+                            persistGameState()
+                            showToast("Кот покормлен из магазина! 🐟")
+                        } else {
+                            showToast("Нужно 15 ❄️!")
+                        }
+                    } else if (itemIndex == 1) {
+                        val clickCost = getClickUpgradePrice(clickUpgradeLevel)
+                        if (snowflakes >= clickCost && clickUpgradeLevel < 15) {
+                            vibrate()
+                            snowflakes -= clickCost
+                            clickUpgradeLevel += 1
+                            persistGameState()
+                            showToast("Сила клика улучшена! Ур. $clickUpgradeLevel 👆")
+                        } else if (clickUpgradeLevel >= 15) {
+                            showToast("Максимальный уровень силы клика!")
+                        } else {
+                            showToast("Нужно ${formatNumber(clickCost)} ❄️!")
+                        }
+                    }
+                }
+            )
         }
 
         if (isWardrobeOpen) {
-            WardrobeDialog(snowflakes = snowflakes.toLong(), donateBalance = 0, purchasedOutfits = boughtOutfitIds, currentOutfitId = currentOutfitId, onDismiss = { isWardrobeOpen = false }, onBuyOutfit = { outfit ->
+            WardrobeDialog(
+                snowflakes = snowflakes.toLong(), 
+                donateBalance = 0, 
+                purchasedOutfits = boughtOutfitIds, 
+                currentOutfitId = currentOutfitId, 
+                onDismiss = { isWardrobeOpen = false }, 
+                onBuyOutfit = { outfit ->
                     if (outfit.currency == CurrencyType.SNOWFLAKES && snowflakes >= outfit.price) {
                         vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
                         snowflakes -= outfit.price; boughtOutfitIds = boughtOutfitIds + outfit.id; currentOutfitId = outfit.id
@@ -541,19 +708,35 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                         showToast("Покупка за донат будет в RuStore!")
                         boughtOutfitIds = boughtOutfitIds + outfit.id; currentOutfitId = outfit.id; isDonateActive = true; persistGameState()
                     } else showToast("Мало снежинок!")
-                }, onEquipOutfit = { outfit -> vibrate(); currentOutfitId = outfit.id; if (outfit.currency == CurrencyType.DONATE) isDonateActive = true else isDonateActive = false; persistGameState(); showToast("Надет: ${outfit.title}") }
+                }, 
+                onEquipOutfit = { outfit -> vibrate(); currentOutfitId = outfit.id; if (outfit.currency == CurrencyType.DONATE) isDonateActive = true else isDonateActive = false; persistGameState(); showToast("Надет: ${outfit.title}") }
             )
         }
 
         if (isBackgroundsOpen) {
-            BackgroundDialog(snowflakes = snowflakes.toLong(), purchasedBackgrounds = purchasedBackgrounds, currentBackgroundId = currentRoomBackground, onDismiss = { isBackgroundsOpen = false }, onBuyBackground = { bg ->
+            BackgroundDialog(
+                snowflakes = snowflakes.toLong(), 
+                purchasedBackgrounds = purchasedBackgrounds, 
+                currentBackgroundId = currentRoomBackground, 
+                onDismiss = { isBackgroundsOpen = false }, 
+                onBuyBackground = { bg ->
                     if (snowflakes >= bg.price) { vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f); snowflakes -= bg.price; purchasedBackgrounds = purchasedBackgrounds + bg.id; currentRoomBackground = bg.id; persistGameState(); showToast("Куплен фон: ${bg.title}!") } else showToast("Мало снежинок!")
-                }, onEquipBackground = { bg -> vibrate(); currentRoomBackground = bg.id; persistGameState(); showToast("Выбран фон: ${bg.title}") }
+                }, 
+                onEquipBackground = { bg -> vibrate(); currentRoomBackground = bg.id; persistGameState(); showToast("Выбран фон: ${bg.title}") }
             )
         }
 
         if (isSettingsOpen) {
-            SettingsDialog(snowIntensity, onIntensityChange = { snowIntensity = it }, isMusicEnabled, onMusicToggle = { isMusicEnabled = it }, isSfxEnabled, onSfxToggle = { isSfxEnabled = it }, isVibrationEnabled, onVibrationToggle = { isVibrationEnabled = it }, musicVolume, onMusicVolumeChange = { musicVolume = it }, sfxVolume, onSfxVolumeChange = { sfxVolume = it }, onDismiss = { isSettingsOpen = false; persistGameState() }, onExitToMenu = onExitToMenu)
+            SettingsDialog(
+                snowIntensity, onIntensityChange = { snowIntensity = it }, 
+                isMusicEnabled, onMusicToggle = { isMusicEnabled = it }, 
+                isSfxEnabled, onSfxToggle = { isSfxEnabled = it }, 
+                isVibrationEnabled, onVibrationToggle = { isVibrationEnabled = it }, 
+                musicVolume, onMusicVolumeChange = { musicVolume = it }, 
+                sfxVolume, onSfxVolumeChange = { sfxVolume = it }, 
+                onDismiss = { isSettingsOpen = false; persistGameState() }, 
+                onExitToMenu = onExitToMenu
+            )
         }
 
         if (isTvOpen) {
@@ -622,54 +805,32 @@ fun SnowfallLayer(isForeground: Boolean, quality: GraphicsQuality, intensity: Fl
 }
 
 // ==========================================
-// 6. ВИЗУАЛЬНЫЕ КОМПОНЕНТЫ (СТАРЫЕ)
+// 6. ВИЗУАЛЬНЫЕ КОМПОНЕНТЫ ИНТЕРЬЕРА
 // ==========================================
 
 @Composable
-fun BackgroundDialog(snowflakes: Long, purchasedBackgrounds: Set<Int>, currentBackgroundId: Int, onDismiss: () -> Unit, onBuyBackground: (RoomBackground) -> Unit, onEquipBackground: (RoomBackground) -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.55f)), modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "Фоны комнаты 🖼️", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = SnowSoft) }
-                }
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Баланс: $snowflakes ❄️", color = GoldAccentLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(ALL_BACKGROUNDS) { bg ->
-                        val isPurchased = purchasedBackgrounds.contains(bg.id)
-                        val isEquipped = currentBackgroundId == bg.id
-                        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NightSurfaceVariant).border(1.dp, if (isEquipped) IceCyan else Color.Transparent, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(bg.wallColor), contentAlignment = Alignment.Center) { Text("🪟", fontSize = 24.sp) }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) { Text(bg.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                            if (isEquipped) Text("Выбран", color = IceCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            else if (isPurchased) Button(onClick = { onEquipBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = IceCyan)) { Text("Выбрать", color = Color.Black, fontSize = 12.sp) }
-                            else {
-                                val canBuy = snowflakes >= bg.price
-                                Button(onClick = { onBuyBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = if (canBuy) GoldAccent else Color.DarkGray)) { Text("${formatNumber(bg.price)} ❄️", color = if (canBuy) Color.Black else SnowSoft, fontSize = 12.sp) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+fun RoomInteriorScenery(wallColor: Color = Color(0xFF2B1A14)) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width; val h = size.height; val floorY = h * 0.74f; val ceilingY = h * 0.1f
+        drawRect(color = Color(0xFF1A0F0A), topLeft = Offset(0f, 0f), size = Size(w, ceilingY))
+        drawRect(brush = Brush.verticalGradient(colors = listOf(wallColor, wallColor.copy(alpha = 0.6f))), topLeft = Offset(0f, ceilingY), size = Size(w, floorY - ceilingY))
+        val winX = w * 0.08f; val winY = h * 0.16f; val winW = w * 0.26f; val winH = h * 0.48f
+        drawRoundRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF060F24), Color(0xFF0D1B38), Color(0xFF192A4E)), startY = winY, endY = winY + winH), topLeft = Offset(winX, winY), size = Size(winW, winH), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
+        drawRoundRect(color = Color(0xFF4A2511), topLeft = Offset(winX - 6.dp.toPx(), winY - 6.dp.toPx()), size = Size(winW + 12.dp.toPx(), winH + 12.dp.toPx()), cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()), style = Stroke(width = 6.dp.toPx()))
+        drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF4A2612), Color(0xFF2E170A)), startY = floorY, endY = h), topLeft = Offset(0f, floorY), size = Size(w, h - floorY))
+        drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF5C2E15), Color(0xFF3E1C0D))), topLeft = Offset(0f, floorY - 10.dp.toPx()), size = Size(w, 12.dp.toPx()))
     }
 }
 
 @Composable
-fun HolidayHostsBackground(currentOutfit: Outfit, onHostClick: () -> Unit, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "HostsIdle")
-    val sway by transition.animateFloat(initialValue = -1.5f, targetValue = 1.5f, animationSpec = infiniteRepeatable(animation = tween(2200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "HostsSway")
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.offset(y = sway.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) { Text(text = "🎅", fontSize = 38.sp); Text(text = "Дед Мороз", color = HolidayRed, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) {
-            EmojiOrImage(emoji = currentOutfit.emoji, imageRes = currentOutfit.imageRes, fontSize = 35.sp)
-            Surface(shape = RoundedCornerShape(6.dp), color = NightSurfaceVariant.copy(alpha = 0.8f), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.5f))) { Text(text = currentOutfit.title, color = IceCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) }
-        }
-    }
+fun StreetExteriorScenery() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                colors = listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5), Color(0xFF7DB9B6))
+            )
+        )
+    )
 }
 
 @Composable
@@ -747,14 +908,7 @@ fun InteractiveCat(isRoom: Boolean, satiety: Int, isAwake: Boolean, plusOneTrigg
     
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Box(modifier = Modifier.height(26.dp), contentAlignment = Alignment.Center) { FloatingClickParticle(trigger = plusOneTrigger, text = "+$clickPower ❄️", color = GoldAccent) }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(NightSurface.copy(alpha = 0.88f)).border(1.dp, if (satiety > 0) GoldAccent.copy(alpha = 0.4f) else HolidayRed.copy(alpha = 0.6f), RoundedCornerShape(10.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-            Text(text = "🐟", fontSize = 10.sp); Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.width(48.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF261D3B))) {
-                val fillRatio = (satiety / 100f).coerceIn(0f, 1f); val barColor = when { satiety > 50 -> Color(0xFF52B788); satiety > 20 -> CozyAmber; else -> HolidayRed }
-                Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fillRatio).background(barColor))
-            }
-            Spacer(modifier = Modifier.width(4.dp)); Text(text = "$satiety%", color = if (satiety > 0) SnowSoft else HolidayRed, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
+        
         Spacer(modifier = Modifier.height(3.dp))
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
             Box(modifier = Modifier.clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onCatClick() }, contentAlignment = Alignment.Center) {
@@ -767,12 +921,6 @@ fun InteractiveCat(isRoom: Boolean, satiety: Int, isAwake: Boolean, plusOneTrigg
             }
             Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 2.dp)) {
-                Surface(shape = RoundedCornerShape(10.dp), color = if (canUpgradeBowl) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.dp, if (canUpgradeBowl) GoldAccentDark else GoldAccent.copy(alpha = 0.35f)), shadowElevation = 3.dp, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { onUpgradeBowl() }) {
-                    Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "🥣+", fontSize = 11.sp); Spacer(modifier = Modifier.width(3.dp)); Text(text = "Улучшить", color = if (canUpgradeBowl) Color(0xFF1C1200) else SnowWhite, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
                 Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { onBowlClick() }, contentAlignment = Alignment.Center) {
                     Text(text = if (bowlLevel == 0) "🥣" else "🥣✨", fontSize = if (bowlLevel == 0) 22.sp else 24.sp)
                 }
@@ -850,40 +998,74 @@ fun SnowflakeCounterTop(snowflakes: Long, incomeRate: Int, donateBalance: Long, 
 }
 
 @Composable
-fun ShopDialog(snowflakes: Long, clickPower: Int, onDismiss: () -> Unit, onBuyItem: (itemIndex: Int, cost: Long) -> Unit) {
+fun ShopDialog(
+    snowflakes: Long, 
+    catLevel: Int, 
+    canUpgradeCat: Boolean,
+    onUpgradeCat: () -> Unit,
+    clickPower: Int, 
+    onDismiss: () -> Unit, 
+    onBuyItem: (itemIndex: Int, cost: Long) -> Unit
+) {
     Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)), modifier = Modifier.fillMaxWidth(0.94f).padding(8.dp)) {
+        Card(
+            shape = RoundedCornerShape(20.dp), 
+            colors = CardDefaults.cardColors(containerColor = NightSurface), 
+            border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)), 
+            modifier = Modifier.fillMaxWidth(0.94f).padding(8.dp)
+        ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(text = "Новогодняя Лавка 🛍️", color = GoldAccent, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) { Icon(imageVector = Icons.Filled.Close, contentDescription = "Закрыть", tint = SnowSoft) }
                 }
                 Spacer(modifier = Modifier.height(14.dp))
+                
                 val costClick = getClickUpgradePrice(clickPower)
-                val items = listOf(ShopItem("Корм для кота", "🐟", 15L, "+30% к сытости"), ShopItem("Сила клика", "👆", costClick, "+1 к % от CPS"))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val catUpgradeCost = getCatUpgradePrice(catLevel + 1)
+                
+                val items = listOf(
+                    ShopItem("Корм для кота", "🐟", 15L, "+30% к сытости"), 
+                    ShopItem("Сила клика", "👆", costClick, "+1 к % от CPS"),
+                    ShopItem("Улучшить кота", "🐱", catUpgradeCost, "Ур. ${catLevel + 1} (+ CPS)")
+                )
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items.forEachIndexed { index, item ->
-                        val canAfford = snowflakes >= item.cost
-                        Column(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(NightSurfaceVariant).border(1.2.dp, if (canAfford) GoldAccent.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = item.emoji, fontSize = 24.sp); Spacer(modifier = Modifier.height(4.dp)); Text(text = item.name, color = SnowWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(2.dp)); Text(text = item.description, color = SnowSoft.copy(alpha = 0.75f), fontSize = 8.sp, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(8.dp))
-                            Button(onClick = { onBuyItem(index, item.cost) }, colors = ButtonDefaults.buttonColors(containerColor = if (canAfford) GoldAccent else Color(0xFF332947)), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().height(34.dp)) { Text(text = "${formatNumber(item.cost)} ❄️", color = if (canAfford) Color(0xFF1C1200) else SnowSoft.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold) }
+                        val canAfford = if (index == 2) canUpgradeCat else (snowflakes >= item.cost)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(NightSurfaceVariant)
+                                .border(1.2.dp, if (canAfford) GoldAccent.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                .padding(8.dp), 
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(text = item.emoji, fontSize = 24.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = item.name, color = SnowWhite, fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = item.description, color = SnowSoft.copy(alpha = 0.75f), fontSize = 8.sp, textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { 
+                                    if (index == 2) onUpgradeCat() else onBuyItem(index, item.cost) 
+                                }, 
+                                colors = ButtonDefaults.buttonColors(containerColor = if (canAfford) GoldAccent else Color(0xFF332947)), 
+                                shape = RoundedCornerShape(10.dp), 
+                                modifier = Modifier.fillMaxWidth().height(34.dp)
+                            ) { 
+                                Text(
+                                    text = "${formatNumber(item.cost)} ❄️", 
+                                    color = if (canAfford) Color(0xFF1C1200) else SnowSoft.copy(alpha = 0.5f), 
+                                    fontSize = 9.sp, 
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1
+                                ) 
+                            }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun FeedCatDialog(snowflakes: Long, currentSatiety: Int, onDismiss: () -> Unit, onConfirmFeed: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.6f)), modifier = Modifier.fillMaxWidth(0.78f).padding(10.dp)) {
-            Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "🐟", fontSize = 34.sp); Spacer(modifier = Modifier.height(6.dp)); Text(text = "Покормить кота за 15 ❄️?", color = SnowWhite, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(4.dp)); Text(text = "Сытость восстановится на +30%\n(текущая: $currentSatiety%)", color = SnowSoft.copy(alpha = 0.8f), fontSize = 11.sp, textAlign = TextAlign.Center); Spacer(modifier = Modifier.height(14.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = NightSurfaceVariant), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(36.dp)) { Text(text = "Отмена", color = SnowSoft, fontSize = 11.sp) }
-                    Button(onClick = onConfirmFeed, colors = ButtonDefaults.buttonColors(containerColor = GoldAccent), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(36.dp)) { Text(text = "Да, 15 ❄️", color = Color(0xFF1C1200), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold) }
                 }
             }
         }
@@ -894,10 +1076,19 @@ fun FeedCatDialog(snowflakes: Long, currentSatiety: Int, onDismiss: () -> Unit, 
 fun DailyRewardButton(isClaimedToday: Boolean, onClaimReward: () -> Unit, modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "DailyGiftGlow")
     val giftGlowScale by transition.animateFloat(initialValue = 1.0f, targetValue = 1.08f, animationSpec = infiniteRepeatable(animation = tween(1200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "GiftScale")
-    Surface(shape = RoundedCornerShape(16.dp), color = if (!isClaimedToday) HolidayRed.copy(alpha = 0.95f) else NightSurfaceVariant.copy(alpha = 0.85f), border = androidx.compose.foundation.BorderStroke(1.2.dp, if (!isClaimedToday) GoldAccent else SnowSoft.copy(alpha = 0.3f)), shadowElevation = if (!isClaimedToday) 8.dp else 2.dp, modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable { onClaimReward() }) {
+    Surface(
+        shape = RoundedCornerShape(16.dp), 
+        color = if (!isClaimedToday) HolidayRed.copy(alpha = 0.95f) else NightSurfaceVariant.copy(alpha = 0.85f), 
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, if (!isClaimedToday) GoldAccent else SnowSoft.copy(alpha = 0.3f)), 
+        shadowElevation = if (!isClaimedToday) 8.dp else 2.dp, 
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable(enabled = !isClaimedToday) { onClaimReward() }
+    ) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text = "🎁", fontSize = 16.sp, modifier = Modifier.scale(if (!isClaimedToday) giftGlowScale else 1.0f)); Spacer(modifier = Modifier.width(6.dp))
-            Column { Text(text = if (!isClaimedToday) "Подарок" else "Завтра", color = if (!isClaimedToday) SnowWhite else SnowSoft.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.Bold); Text(text = if (!isClaimedToday) "+100 ❄️" else "00:00", color = if (!isClaimedToday) GoldAccent else SnowSoft.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+            Column { 
+                Text(text = if (!isClaimedToday) "Подарок" else "Забрано", color = if (!isClaimedToday) SnowWhite else SnowSoft.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(text = if (!isClaimedToday) "+100 ❄️" else "Уже получен", color = if (!isClaimedToday) GoldAccent else SnowSoft.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold) 
+            }
         }
     }
 }
@@ -912,44 +1103,84 @@ fun GameToast(message: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun RoomInteriorScenery(wallColor: Color = Color(0xFF2B1A14)) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val w = size.width; val h = size.height; val floorY = h * 0.74f; val ceilingY = h * 0.1f
-        drawRect(color = Color(0xFF1A0F0A), topLeft = Offset(0f, 0f), size = Size(w, ceilingY))
-        drawRect(brush = Brush.verticalGradient(colors = listOf(wallColor, wallColor.copy(alpha = 0.6f))), topLeft = Offset(0f, ceilingY), size = Size(w, floorY - ceilingY))
-        val winX = w * 0.08f; val winY = h * 0.16f; val winW = w * 0.26f; val winH = h * 0.48f
-        drawRoundRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF060F24), Color(0xFF0D1B38), Color(0xFF192A4E)), startY = winY, endY = winY + winH), topLeft = Offset(winX, winY), size = Size(winW, winH), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
-        drawRoundRect(color = Color(0xFF4A2511), topLeft = Offset(winX - 6.dp.toPx(), winY - 6.dp.toPx()), size = Size(winW + 12.dp.toPx(), winH + 12.dp.toPx()), cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()), style = Stroke(width = 6.dp.toPx()))
-        drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF4A2612), Color(0xFF2E170A)), startY = floorY, endY = h), topLeft = Offset(0f, floorY), size = Size(w, h - floorY))
-        drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF5C2E15), Color(0xFF3E1C0D))), topLeft = Offset(0f, floorY - 10.dp.toPx()), size = Size(w, 12.dp.toPx()))
+fun HolidayHostsBackground(currentOutfit: Outfit, onHostClick: () -> Unit, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "HostsIdle")
+    val sway by transition.animateFloat(initialValue = -1.5f, targetValue = 1.5f, animationSpec = infiniteRepeatable(animation = tween(2200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "HostsSway")
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.offset(y = sway.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) { Text(text = "🎅", fontSize = 38.sp); Text(text = "Дед Мороз", color = HolidayRed, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) {
+            EmojiOrImage(emoji = currentOutfit.emoji, imageRes = currentOutfit.imageRes, fontSize = 35.sp)
+            Surface(shape = RoundedCornerShape(6.dp), color = NightSurfaceVariant.copy(alpha = 0.8f), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.5f))) { Text(text = currentOutfit.title, color = IceCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) }
+        }
     }
 }
 
 @Composable
-fun StreetExteriorScenery() {
+fun FireplaceLarge() {
     Box(
-        modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
-                colors = listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5), Color(0xFF7DB9B6))
+        modifier = Modifier.size(160.dp, 190.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            drawRoundRect(
+                color = Color(0xFF4A2511),
+                topLeft = Offset(0f, h * 0.15f),
+                size = Size(w, h * 0.85f),
+                cornerRadius = CornerRadius(8.dp.toPx())
             )
-        )
-    )
+            drawRoundRect(
+                color = Color(0xFF2C160B),
+                topLeft = Offset(6.dp.toPx(), h * 0.2f),
+                size = Size(w - 12.dp.toPx(), h * 0.8f),
+                cornerRadius = CornerRadius(6.dp.toPx())
+            )
+
+            drawRoundRect(
+                color = Color(0xFF110804),
+                topLeft = Offset(w * 0.2f, h * 0.35f),
+                size = Size(w * 0.60f, h * 0.55f),
+                cornerRadius = CornerRadius(4.dp.toPx())
+            )
+
+            drawRect(
+                color = Color(0xFF5C4033),
+                topLeft = Offset(w * 0.3f, h * 0.75f),
+                size = Size(w * 0.4f, h * 0.08f)
+            )
+
+            drawCircle(
+                brush = Brush.radialGradient(listOf(Color(0xFFFFEB3B), Color(0xFFFF5722), Color.Transparent)),
+                radius = w * 0.25f,
+                center = Offset(w * 0.5f, h * 0.6f)
+            )
+
+            drawRect(
+                color = Color(0xFF5C2E15),
+                topLeft = Offset(-10.dp.toPx(), h * 0.1f),
+                size = Size(w + 20.dp.toPx(), h * 0.08f)
+            )
+        }
+    }
 }
 
 @Composable
-fun GameBottomNavigationBar(currentTab: GameTab, onTabSelected: (GameTab) -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.padding(bottom = 12.dp).shadow(12.dp, RoundedCornerShape(30.dp)), shape = RoundedCornerShape(30.dp), color = NightSurface.copy(alpha = 0.94f), border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.3f))) {
-        Row(modifier = Modifier.wrapContentWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            GameTab.values().forEach { tab ->
-                val isSelected = currentTab == tab
-                Box(modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(if (isSelected) GoldAccent.copy(alpha = 0.22f) else Color.Transparent).border(width = if (isSelected) 1.dp else 0.dp, color = if (isSelected) GoldAccent.copy(alpha = 0.7f) else Color.Transparent, shape = RoundedCornerShape(24.dp)).clickable { onTabSelected(tab) }.padding(horizontal = 24.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Icon(imageVector = tab.icon, contentDescription = tab.label, tint = if (isSelected) GoldAccent else SnowSoft.copy(alpha = 0.65f), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = tab.label, color = if (isSelected) GoldAccent else SnowSoft.copy(alpha = 0.75f), fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
-                    }
-                }
-            }
+fun CalendarWidget() {
+    Card(
+        modifier = Modifier.size(65.dp, 75.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("ДЕК", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("31", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
@@ -1002,7 +1233,41 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 9.0 • Слои и графика 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 9.3 • Финальная сборка 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+fun BackgroundDialog(snowflakes: Long, purchasedBackgrounds: Set<Int>, currentBackgroundId: Int, onDismiss: () -> Unit, onBuyBackground: (RoomBackground) -> Unit, onEquipBackground: (RoomBackground) -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.55f)), modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Фоны комнаты 🖼️", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = SnowSoft) }
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Баланс: $snowflakes ❄️", color = GoldAccentLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ALL_BACKGROUNDS) { bg ->
+                        val isPurchased = purchasedBackgrounds.contains(bg.id)
+                        val isEquipped = currentBackgroundId == bg.id
+                        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NightSurfaceVariant).border(1.dp, if (isEquipped) IceCyan else Color.Transparent, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(bg.wallColor), contentAlignment = Alignment.Center) { Text("🪟", fontSize = 24.sp) }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) { Text(bg.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                            if (isEquipped) Text("Выбран", color = IceCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            else if (isPurchased) Button(onClick = { onEquipBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = IceCyan)) { Text("Выбрать", color = Color.Black, fontSize = 12.sp) }
+                            else {
+                                val canBuy = snowflakes >= bg.price
+                                Button(onClick = { onBuyBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = if (canBuy) GoldAccent else Color.DarkGray)) { Text("${formatNumber(bg.price)} ❄️", color = if (canBuy) Color.Black else SnowSoft, fontSize = 12.sp) }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
