@@ -107,20 +107,32 @@ val ALL_OUTFITS = listOf(
 
 data class ShopItem(val name: String, val emoji: String, val cost: Long, val description: String)
 
+// НОВОЕ: Модель фонов комнаты
+data class RoomBackground(val id: Int, val title: String, val price: Long, val wallColor: Color)
+
+val ALL_BACKGROUNDS = listOf(
+    RoomBackground(0, "Уютный вечер", 0L, Color(0xFF2B1A14)),
+    RoomBackground(1, "Зимний лес", 5000L, Color(0xFF1E3A5F)),
+    RoomBackground(2, "Красная изба", 15000L, Color(0xFF5E1914)),
+    RoomBackground(3, "Тёмный чердак", 40000L, Color(0xFF1A1A1A))
+)
+
 enum class GameTab(val label: String, val icon: ImageVector) {
     ROOM("Комната", Icons.Filled.Home),
     STREET("Улица", Icons.Filled.AcUnit)
 }
 
 // ==========================================
-// 2. СОХРАНЕНИЯ (С НАСТРОЙКАМИ)
+// 2. СОХРАНЕНИЯ
 // ==========================================
 data class GameSaveData(
     val snowflakes: Long, val streetTreeLevel: Int, val roomTreeLevel: Int, val catSatiety: Int,
     val lastUpdateTime: Long, val lastDailyRewardDay: String, val bowlLevel: Int, val clickPower: Int,
     val purchasedOutfitIds: Set<Int>, val currentOutfitId: Int, val donateBalance: Long,
     val isMusicEnabled: Boolean, val isSfxEnabled: Boolean, val isVibrationEnabled: Boolean,
-    val musicVolume: Float, val sfxVolume: Float, val snowIntensity: Float
+    val musicVolume: Float, val sfxVolume: Float, val snowIntensity: Float,
+    // НОВОЕ: Сохранение фонов
+    val currentBackgroundId: Int, val purchasedBackgroundIds: Set<Int>
 )
 
 object GameStorage {
@@ -138,7 +150,10 @@ object GameStorage {
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
             musicVolume = prefs.getFloat("music_volume", 0.5f),
             sfxVolume = prefs.getFloat("sfx_volume", 0.8f),
-            snowIntensity = prefs.getFloat("snow_intensity", 1.0f)
+            snowIntensity = prefs.getFloat("snow_intensity", 1.0f),
+            // НОВОЕ: Загрузка фонов
+            currentBackgroundId = prefs.getInt("current_background_id", 0),
+            purchasedBackgroundIds = prefs.getStringSet("purchased_backgrounds", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0)
         )
     }
     fun save(context: Context, data: GameSaveData) {
@@ -152,6 +167,9 @@ object GameStorage {
             .putBoolean("is_music_enabled", data.isMusicEnabled).putBoolean("is_sfx_enabled", data.isSfxEnabled)
             .putBoolean("is_vibration_enabled", data.isVibrationEnabled).putFloat("music_volume", data.musicVolume)
             .putFloat("sfx_volume", data.sfxVolume).putFloat("snow_intensity", data.snowIntensity)
+            // НОВОЕ: Сохранение фонов
+            .putInt("current_background_id", data.currentBackgroundId)
+            .putStringSet("purchased_backgrounds", data.purchasedBackgroundIds.map { it.toString() }.toSet())
             .apply()
     }
 }
@@ -177,6 +195,10 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var purchasedOutfits by remember { mutableStateOf(savedState.purchasedOutfitIds) }
     var currentOutfitId by remember { mutableIntStateOf(savedState.currentOutfitId) }
 
+    // НОВОЕ: Состояния фонов
+    var currentBackgroundId by remember { mutableIntStateOf(savedState.currentBackgroundId) }
+    var purchasedBackgrounds by remember { mutableStateOf(savedState.purchasedBackgroundIds) }
+
     var isMusicEnabled by remember { mutableStateOf(savedState.isMusicEnabled) }
     var isSfxEnabled by remember { mutableStateOf(savedState.isSfxEnabled) }
     var isVibrationEnabled by remember { mutableStateOf(savedState.isVibrationEnabled) }
@@ -195,6 +217,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isFeedCatDialogOpen by remember { mutableStateOf(false) }
     var isTvOpen by remember { mutableStateOf(false) }
+    var isBackgroundsOpen by remember { mutableStateOf(false) } // Окно фонов
     var currentTab by remember { mutableStateOf(GameTab.ROOM) }
     var lightsMode by remember { mutableIntStateOf(0) }
     
@@ -227,7 +250,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             snowflakesState.longValue, streetTreeLevel, roomTreeLevel, catSatiety,
             System.currentTimeMillis(), lastDailyRewardDay, bowlLevel, clickPower,
             purchasedOutfits, currentOutfitId, donateBalance,
-            isMusicEnabled, isSfxEnabled, isVibrationEnabled, musicVolume, sfxVolume, snowIntensity
+            isMusicEnabled, isSfxEnabled, isVibrationEnabled, musicVolume, sfxVolume, snowIntensity,
+            currentBackgroundId, purchasedBackgrounds
         ))
     }
 
@@ -347,7 +371,14 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
 
-        if (isRoomTab) RoomInteriorScenery() else StreetExteriorScenery(isDay = isDayTime)
+        // ОТРИСОВКА ФОНА КОМНАТЫ (Меняется в зависимости от выбора)
+        if (isRoomTab) {
+            val currentBg = ALL_BACKGROUNDS.find { it.id == currentBackgroundId } ?: ALL_BACKGROUNDS[0]
+            RoomInteriorScenery(wallColor = currentBg.wallColor)
+        } else {
+            StreetExteriorScenery(isDay = isDayTime)
+        }
+        
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
         if (!isRoomTab) {
@@ -482,7 +513,12 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 
         SnowflakeCounterTop(snowflakes = snowflakesState.longValue, incomeRate = effectiveIncomeRate, donateBalance = donateBalance, modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
 
+        // ВЕРХНИЕ КНОПКИ
         Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // НОВАЯ КНОПКА ФОНОВ (Только в комнате)
+            if (isRoomTab) {
+                IconButton(onClick = { vibrate(); isBackgroundsOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, IceCyan.copy(alpha = 0.5f), CircleShape)) { Text(text = "🖼️", fontSize = 16.sp) }
+            }
             IconButton(onClick = { vibrate(); isWardrobeOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, GoldAccent.copy(alpha = 0.5f), CircleShape)) { Text(text = "👗", fontSize = 16.sp) }
             IconButton(onClick = { vibrate(); isShopOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, GoldAccent.copy(alpha = 0.5f), CircleShape)) { Icon(imageVector = Icons.Filled.ShoppingCart, contentDescription = "Магазин", tint = GoldAccent, modifier = Modifier.size(18.dp)) }
             IconButton(onClick = { vibrate(); isSettingsOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, IceCyan.copy(alpha = 0.3f), CircleShape)) { Icon(imageVector = Icons.Filled.Settings, contentDescription = "Настройки", tint = GoldAccent, modifier = Modifier.size(18.dp)) }
@@ -522,6 +558,27 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             )
         }
 
+        // НОВОЕ ОКНО: ВЫБОР ФОНОВ
+        if (isBackgroundsOpen) {
+            BackgroundDialog(
+                snowflakes = snowflakesState.longValue,
+                purchasedBackgrounds = purchasedBackgrounds,
+                currentBackgroundId = currentBackgroundId,
+                onDismiss = { isBackgroundsOpen = false },
+                onBuyBackground = { bg ->
+                    if (snowflakesState.longValue >= bg.price) {
+                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                        snowflakesState.longValue -= bg.price
+                        purchasedBackgrounds = purchasedBackgrounds + bg.id
+                        currentBackgroundId = bg.id
+                        persistGameState()
+                        showToast("Куплен фон: ${bg.title}!")
+                    } else showToast("Мало снежинок!")
+                },
+                onEquipBackground = { bg -> vibrate(); currentBackgroundId = bg.id; persistGameState(); showToast("Выбран фон: ${bg.title}") }
+            )
+        }
+
         if (isSettingsOpen) {
             SettingsDialog(
                 snowIntensity, onIntensityChange = { snowIntensity = it },
@@ -531,7 +588,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 musicVolume, onMusicVolumeChange = { musicVolume = it },
                 sfxVolume, onSfxVolumeChange = { sfxVolume = it },
                 onDismiss = { isSettingsOpen = false; persistGameState() },
-                onExitToMenu = onExitToMenu // <-- ПЕРЕДАЕМ ПАРАМЕТР
+                onExitToMenu = onExitToMenu
             )
         }
 
@@ -556,6 +613,55 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 // ==========================================
 fun getTodayDateStr(): String {
     return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+}
+
+// НОВОЕ ОКНО ГАРДЕРОБА ФОНОВ
+@Composable
+fun BackgroundDialog(
+    snowflakes: Long,
+    purchasedBackgrounds: Set<Int>,
+    currentBackgroundId: Int,
+    onDismiss: () -> Unit,
+    onBuyBackground: (RoomBackground) -> Unit,
+    onEquipBackground: (RoomBackground) -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.55f)), modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Фоны комнаты 🖼️", color = GoldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = SnowSoft) }
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Баланс: $snowflakes ❄️", color = GoldAccentLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ALL_BACKGROUNDS) { bg ->
+                        val isPurchased = purchasedBackgrounds.contains(bg.id)
+                        val isEquipped = currentBackgroundId == bg.id
+                        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NightSurfaceVariant).border(1.dp, if (isEquipped) IceCyan else Color.Transparent, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            // Иконка фона
+                            Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(bg.wallColor), contentAlignment = Alignment.Center) {
+                                Text("🪟", fontSize = 24.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(bg.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (isEquipped) Text("Выбран", color = IceCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            else if (isPurchased) Button(onClick = { onEquipBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = IceCyan)) { Text("Выбрать", color = Color.Black, fontSize = 12.sp) }
+                            else {
+                                val canBuy = snowflakes >= bg.price
+                                Button(onClick = { onBuyBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = if (canBuy) GoldAccent else Color.DarkGray)) {
+                                    Text("${formatNumber(bg.price)} ❄️", color = if (canBuy) Color.Black else SnowSoft, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -814,15 +920,19 @@ fun GameToast(message: String?, modifier: Modifier = Modifier) {
     }
 }
 
+// ОБНОВЛЕННЫЙ ФОН КОМНАТЫ (Принимает цвет стены)
 @Composable
-fun RoomInteriorScenery() {
+fun RoomInteriorScenery(wallColor: Color = Color(0xFF2B1A14)) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width; val h = size.height; val floorY = h * 0.74f; val ceilingY = h * 0.1f
         drawRect(color = Color(0xFF1A0F0A), topLeft = Offset(0f, 0f), size = Size(w, ceilingY))
-        drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF2B1A14), Color(0xFF3D231A))), topLeft = Offset(0f, ceilingY), size = Size(w, floorY - ceilingY))
+        // Стена меняет цвет
+        drawRect(brush = Brush.verticalGradient(colors = listOf(wallColor, wallColor.copy(alpha = 0.6f))), topLeft = Offset(0f, ceilingY), size = Size(w, floorY - ceilingY))
+        
         val winX = w * 0.08f; val winY = h * 0.16f; val winW = w * 0.26f; val winH = h * 0.48f
         drawRoundRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF060F24), Color(0xFF0D1B38), Color(0xFF192A4E)), startY = winY, endY = winY + winH), topLeft = Offset(winX, winY), size = Size(winW, winH), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
         drawRoundRect(color = Color(0xFF4A2511), topLeft = Offset(winX - 6.dp.toPx(), winY - 6.dp.toPx()), size = Size(winW + 12.dp.toPx(), winH + 12.dp.toPx()), cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()), style = Stroke(width = 6.dp.toPx()))
+        
         drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF4A2612), Color(0xFF2E170A)), startY = floorY, endY = h), topLeft = Offset(0f, floorY), size = Size(w, h - floorY))
         drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF5C2E15), Color(0xFF3E1C0D))), topLeft = Offset(0f, floorY - 10.dp.toPx()), size = Size(w, 12.dp.toPx()))
     }
@@ -924,7 +1034,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 5.0 • Меню и Сюжет 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 5.5 • Фоны комнаты 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
