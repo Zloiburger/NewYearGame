@@ -68,6 +68,28 @@ fun App() {
 }
 
 // ==========================================
+// ЭКРАН ЗАГРУЗКИ (ВОЗВРАЩЕН СЮДА)
+// ==========================================
+@Composable
+fun SplashScreen(onTimeout: () -> Unit) {
+    LaunchedEffect(Unit) { delay(2000); onTimeout() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF0D1321), Color(0xFF131D31)))),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "🎄", fontSize = 80.sp, modifier = Modifier.scale(1.2f))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(text = "Новогодняя Сказка", color = GoldAccent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Загрузка волшебства...", color = SnowSoft, fontSize = 14.sp)
+        }
+    }
+}
+
+// ==========================================
 // ГЛАВНОЕ МЕНЮ
 // ==========================================
 @Composable
@@ -82,7 +104,6 @@ fun MainMenuScreen(
             .background(Brush.verticalGradient(listOf(Color(0xFF0D1321), Color(0xFF1D2D44)))),
         contentAlignment = Alignment.Center
     ) {
-        // Фоновые снежинки или елка (можно добавить позже)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "🎄",
@@ -103,7 +124,6 @@ fun MainMenuScreen(
                 modifier = Modifier.padding(top = 8.dp, bottom = 40.dp)
             )
 
-            // Кнопки меню
             MenuButton(text = "Начать игру", icon = Icons.Filled.PlayArrow, onClick = onStartGame)
             Spacer(modifier = Modifier.height(16.dp))
             MenuButton(text = "Альбом", icon = Icons.Filled.Star, onClick = onOpenAlbum)
@@ -132,7 +152,7 @@ fun MenuButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVect
 // СЮЖЕТНАЯ ЗАСТАВКА (КОМИКС)
 // ==========================================
 data class StorySlide(
-    @DrawableRes val imageRes: Int? = null, // Пока null, картинки сгенерируем позже
+    @DrawableRes val imageRes: Int? = null,
     val fallbackEmoji: String,
     val text: String
 )
@@ -155,7 +175,6 @@ fun CutsceneScreen(onFinish: () -> Unit) {
         modifier = Modifier.fillMaxSize().background(Color(0xFF0D1321)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Область картинки
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,12 +190,10 @@ fun CutsceneScreen(onFinish: () -> Unit) {
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // Заглушка, пока нет картинок
                 Text(text = slide.fallbackEmoji, fontSize = 120.sp, modifier = Modifier.scale(1.2f))
             }
         }
 
-        // Плашка с текстом
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = Color(0xFF1B1B38).copy(alpha = 0.95f),
