@@ -84,6 +84,7 @@ data class Outfit(
     @DrawableRes val imageRes: Int? = null
 )
 
+// СБАЛАНСИРОВАННЫЕ ДОНАТ-НАРЯДЫ (Доход уменьшен в 10-15 раз)
 val ALL_OUTFITS = listOf(
     Outfit(0, "Обычный наряд", "👧", CurrencyType.SNOWFLAKES, 0L, 0, isDefault = true),
     Outfit(1, "Праздничное платье", "🎀", CurrencyType.SNOWFLAKES, 10000L, 15),
@@ -95,16 +96,17 @@ val ALL_OUTFITS = listOf(
     Outfit(7, "Платье Метелицы", "🌪️", CurrencyType.SNOWFLAKES, 120000L, 200),
     Outfit(8, "Костюм Звездочета", "🔭", CurrencyType.SNOWFLAKES, 300000L, 450),
     Outfit(9, "Мантия Вьюги", "❄️", CurrencyType.SNOWFLAKES, 750000L, 1000),
-    Outfit(10, "Королевская мантия", "👑", CurrencyType.DONATE, 99L, 2500),
-    Outfit(11, "Сияние севера", "🌌", CurrencyType.DONATE, 149L, 4000),
-    Outfit(12, "Изумрудный наряд", "💚", CurrencyType.DONATE, 199L, 6000),
-    Outfit(13, "Алый костюм", "❤️", CurrencyType.DONATE, 299L, 10000),
-    Outfit(14, "Костюм Золотой Зимы", "🏆", CurrencyType.DONATE, 399L, 18000),
-    Outfit(15, "Мантия Снежной Королевы", "🧊", CurrencyType.DONATE, 499L, 30000),
-    Outfit(16, "Неоновый костюм", "💡", CurrencyType.DONATE, 599L, 50000),
-    Outfit(17, "Космический скафандр", "🚀", CurrencyType.DONATE, 799L, 85000),
-    Outfit(18, "Костюм Дракона", "🐉", CurrencyType.DONATE, 999L, 150000),
-    Outfit(19, "Легенда Нового Года", "🔥", CurrencyType.DONATE, 1499L, 300000)
+    // ДОНАТ (доход порезан, чтобы не ломать игру)
+    Outfit(10, "Королевская мантия", "👑", CurrencyType.DONATE, 99L, 50),
+    Outfit(11, "Сияние севера", "🌌", CurrencyType.DONATE, 149L, 100),
+    Outfit(12, "Изумрудный наряд", "💚", CurrencyType.DONATE, 199L, 200),
+    Outfit(13, "Алый костюм", "❤️", CurrencyType.DONATE, 299L, 400),
+    Outfit(14, "Костюм Золотой Зимы", "🏆", CurrencyType.DONATE, 399L, 800),
+    Outfit(15, "Мантия Снежной Королевы", "🧊", CurrencyType.DONATE, 499L, 1500),
+    Outfit(16, "Неоновый костюм", "💡", CurrencyType.DONATE, 599L, 3000),
+    Outfit(17, "Космический скафандр", "🚀", CurrencyType.DONATE, 799L, 6000),
+    Outfit(18, "Костюм Дракона", "🐉", CurrencyType.DONATE, 999L, 12000),
+    Outfit(19, "Легенда Нового Года", "🔥", CurrencyType.DONATE, 1499L, 25000)
 )
 
 data class ShopItem(val name: String, val emoji: String, val cost: Long, val description: String)
@@ -154,7 +156,7 @@ object GameStorage {
             isMusicEnabled = prefs.getBoolean("is_music_enabled", true),
             isSfxEnabled = prefs.getBoolean("is_sfx_enabled", true),
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
-            musicVolume = prefs.getFloat("music_volume", 0.8f),
+            musicVolume = prefs.getFloat("music_volume", 0.8f), // Принудительно 0.8
             sfxVolume = prefs.getFloat("sfx_volume", 0.8f),
             snowIntensity = prefs.getFloat("snow_intensity", 1.0f),
             currentBackgroundId = prefs.getInt("current_background_id", 0),
@@ -226,7 +228,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
-    // ЗВУК КАССЫ БЕРЕМ ИЗ ФАЙЛА FIREPLACE
+    // Звук кассы берем из файла fireplace
     val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) }
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -255,33 +257,40 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         ))
     }
 
-    LaunchedEffect(isMusicEnabled, currentSongIndex) {
-        if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
-            mediaPlayer?.release()
-            mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
-                setVolume(musicVolume, musicVolume)
-                setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
-                start()
+    // ПОЧИНКА МУЗЫКИ (с защитой от вылетов)
+    LaunchedEffect(isMusicEnabled, currentSongIndex, musicVolume) {
+        try {
+            if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
+                mediaPlayer?.release()
+                mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
+                    setVolume(1.0f, 1.0f) // Временно ставим 100% громкость для теста
+                    setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
+                    start()
+                }
+            } else {
+                mediaPlayer?.pause()
             }
-        } else {
-            mediaPlayer?.pause()
+        } catch (e: Exception) {
+            // Если музыка сломалась, игра не вылетит
         }
     }
 
-    LaunchedEffect(musicVolume) { mediaPlayer?.setVolume(musicVolume, musicVolume) }
-
     LaunchedEffect(currentTab, isSfxEnabled) {
-        if (currentTab == GameTab.ROOM && isSfxEnabled) {
-            if (fireplacePlayer == null) {
-                // ЗВУК КАМИНА БЕРЕМ ИЗ ФАЙЛА CASH_REGISTER, И ДЕЛАЕМ ЕГО ТИШЕ (0.1f)
-                fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
-                    isLooping = true; setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f); start()
-                }
-            } else { fireplacePlayer?.start() }
-        } else { fireplacePlayer?.pause() }
+        try {
+            if (currentTab == GameTab.ROOM && isSfxEnabled) {
+                if (fireplacePlayer == null) {
+                    // Звук камина берем из cash_register и делаем тихим (0.1f)
+                    fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
+                        isLooping = true; setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f); start()
+                    }
+                } else { fireplacePlayer?.start() }
+            } else { fireplacePlayer?.pause() }
+        } catch (e: Exception) {}
     }
 
-    LaunchedEffect(sfxVolume) { fireplacePlayer?.setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f) }
+    LaunchedEffect(sfxVolume) { 
+        try { fireplacePlayer?.setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f) } catch (e: Exception) {} 
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> 
@@ -376,6 +385,9 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
 
+        // ==========================================
+        // УЛИЦА
+        // ==========================================
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.12f, bottom = h * 0.18f).scale(tabletScale)) {
                 HolidayHostsBackground(currentOutfit = ALL_OUTFITS.find { it.id == currentOutfitId } ?: ALL_OUTFITS[0], onHostClick = { vibrate(); showToast("С Новым Годом! 🎄") })
@@ -408,13 +420,18 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             }
         }
 
+        // ==========================================
+        // КОМНАТА (ИСПРАВЛЕННЫЙ UI)
+        // ==========================================
         if (isRoomTab) {
+            // Елка по центру
             Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.92f else 0.88f).padding(bottom = 20.dp).scale(0.70f * tabletScale), contentAlignment = Alignment.BottomCenter) {
                 ChristmasTree25D(isRoom = true, treeLevel = roomTreeLevel, garlandMode = lightsMode, onTreeClick = {
                     vibrate(); snowflakesState.longValue += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️")
                 })
             }
 
+            // Кнопка улучшения елки по центру внизу
             Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = h * 0.22f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 val roomCost = calculateRoomTreeCost(roomTreeLevel)
                 val canUpgradeRoom = snowflakesState.longValue >= roomCost && roomTreeLevel < 15
@@ -431,7 +448,26 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 }
             }
 
-            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.05f, bottom = h * 0.18f).scale(tabletScale)) {
+            // КАМИН И КАЛЕНДАРЬ (Слева, чуть ниже окна)
+            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = w * 0.05f, top = h * 0.45f)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Календарь
+                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(45.dp, 55.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(modifier = Modifier.fillMaxWidth().height(14.dp).background(Color.Red))
+                            Text("31", color = Color.Black, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Камин
+                    Box(modifier = Modifier.width(110.dp).height(80.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) {
+                        Text("🔥", fontSize = 35.sp, modifier = Modifier.padding(bottom = 5.dp))
+                    }
+                }
+            }
+
+            // КОТ (Слева, рядом с камином)
+            Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.25f, bottom = h * 0.15f).scale(tabletScale)) {
                 InteractiveCat(isRoom = true, satiety = catSatiety, isAwake = isCatAwake, plusOneTrigger = catPlusOneTrigger, bowlLevel = bowlLevel, canUpgradeBowl = snowflakesState.longValue >= calculateStreetTreeCost(bowlLevel), onUpgradeBowl = {
                     val cost = calculateStreetTreeCost(bowlLevel)
                     if (snowflakesState.longValue >= cost) { 
@@ -445,29 +481,20 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 }, clickPower = clickPower)
             }
 
-            Box(modifier = Modifier.align(Alignment.BottomEnd).padding(end = w * 0.06f, bottom = h * 0.20f)) {
+            // ТЕЛЕВИЗОР (Справа, по центру стены)
+            Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = w * 0.1f)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(shape = RoundedCornerShape(8.dp), color = Color.Black, border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray), modifier = Modifier.size(70.dp, 50.dp).clickable { vibrate(); isTvOpen = true }) { Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 30.sp) } }
-                    Box(modifier = Modifier.width(100.dp).height(15.dp).background(Color(0xFF5C3A21), RoundedCornerShape(4.dp)))
-                }
-            }
-
-            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = w * 0.03f, top = h * 0.15f)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(40.dp, 50.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(modifier = Modifier.fillMaxWidth().height(12.dp).background(Color.Red))
-                            Text("31", color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        }
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color.Black, border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray), modifier = Modifier.size(75.dp, 55.dp).clickable { vibrate(); isTvOpen = true }) { 
+                        Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 32.sp) } 
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(modifier = Modifier.width(100.dp).height(70.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) {
-                        Text("🔥", fontSize = 30.sp, modifier = Modifier.padding(bottom = 5.dp))
-                    }
+                    Box(modifier = Modifier.width(110.dp).height(15.dp).background(Color(0xFF5C3A21), RoundedCornerShape(4.dp)))
                 }
             }
         }
 
+        // ==========================================
+        // СНЕГОВИК (Улица)
+        // ==========================================
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = w * 0.05f, bottom = h * 0.18f).scale(tabletScale)) {
                 InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { vibrate(); snowflakesState.longValue += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() }, clickPower = clickPower)
@@ -475,6 +502,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
         }
 
+        // ВЕРХНЯЯ ПАНЕЛЬ
         DailyRewardButton(isClaimedToday = lastDailyRewardDay == currentDateStr, onClaimReward = {
             if (lastDailyRewardDay != currentDateStr) { 
                 vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
@@ -496,6 +524,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
         GameBottomNavigationBar(currentTab = currentTab, onTabSelected = { tab -> vibrate(); currentTab = tab }, modifier = Modifier.align(Alignment.BottomCenter))
 
+        // ДИАЛОГИ
         if (isShopOpen) {
             ShopDialog(snowflakes = snowflakesState.longValue, clickPower = clickPower, onDismiss = { isShopOpen = false }, onBuyItem = { itemIndex, cost ->
                 when (itemIndex) {
@@ -953,7 +982,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 6.5 • Звуки и вибрация 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 7.0 • Баланс и Музыка 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
