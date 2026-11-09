@@ -154,7 +154,7 @@ object GameStorage {
             isMusicEnabled = prefs.getBoolean("is_music_enabled", true),
             isSfxEnabled = prefs.getBoolean("is_sfx_enabled", true),
             isVibrationEnabled = prefs.getBoolean("is_vibration_enabled", true),
-            musicVolume = prefs.getFloat("music_volume", 0.5f),
+            musicVolume = prefs.getFloat("music_volume", 0.8f),
             sfxVolume = prefs.getFloat("sfx_volume", 0.8f),
             snowIntensity = prefs.getFloat("snow_intensity", 1.0f),
             currentBackgroundId = prefs.getInt("current_background_id", 0),
@@ -226,7 +226,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
     }
-    // ИСПРАВЛЕНИЕ: Звук покупки берем из файла fireplace (там лежит звук кассы)
+    // ЗВУК КАССЫ БЕРЕМ ИЗ ФАЙЛА FIREPLACE
     val cashSoundId = remember { soundPool.load(context, R.raw.fireplace, 1) }
     
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -273,26 +273,26 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     LaunchedEffect(currentTab, isSfxEnabled) {
         if (currentTab == GameTab.ROOM && isSfxEnabled) {
             if (fireplacePlayer == null) {
-                // ИСПРАВЛЕНИЕ: Звук камина берем из файла cash_register (там лежит треск дров)
+                // ЗВУК КАМИНА БЕРЕМ ИЗ ФАЙЛА CASH_REGISTER, И ДЕЛАЕМ ЕГО ТИШЕ (0.1f)
                 fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
-                    isLooping = true; setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f); start()
+                    isLooping = true; setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f); start()
                 }
             } else { fireplacePlayer?.start() }
         } else { fireplacePlayer?.pause() }
     }
 
-    LaunchedEffect(sfxVolume) { fireplacePlayer?.setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f) }
+    LaunchedEffect(sfxVolume) { fireplacePlayer?.setVolume(sfxVolume * 0.1f, sfxVolume * 0.1f) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> 
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
                 persistGameState()
                 mediaPlayer?.pause(); fireplacePlayer?.pause()
-                soundPool.autoPause() // ФИКС ОТ АЛИСЫ
+                soundPool.autoPause()
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 if (isMusicEnabled) mediaPlayer?.start()
                 if (currentTab == GameTab.ROOM && isSfxEnabled) fireplacePlayer?.start()
-                soundPool.autoResume() // ФИКС ОТ АЛИСЫ
+                soundPool.autoResume()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -858,8 +858,14 @@ fun RoomInteriorScenery(wallColor: Color = Color(0xFF2B1A14)) {
 
 @Composable
 fun StreetExteriorScenery(isDay: Boolean) {
-    val backgroundImage = if (isDay) R.drawable.bg_day else R.drawable.bg_night
-    Image(painter = painterResource(id = backgroundImage), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                colors = if (isDay) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5), Color(0xFF7DB9B6))
+                else listOf(Color(0xFF060914), Color(0xFF0C182B), Color(0xFF1B2A4A))
+            )
+        )
+    )
 }
 
 @Composable
@@ -947,7 +953,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 6.2 • Звуки и UI исправлены 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 6.5 • Звуки и вибрация 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
