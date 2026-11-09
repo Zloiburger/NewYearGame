@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = NightSkyDark
                 ) {
-                    App() // <--- ТЕПЕРЬ ВЫЗЫВАЕМ APP
+                    App()
                 }
             }
         }
