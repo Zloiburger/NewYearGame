@@ -7,6 +7,7 @@ import android.media.SoundPool
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -63,9 +64,6 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
-// ==========================================
-// 1. МАТЕМАТИКА И МОДЕЛИ
-// ==========================================
 fun formatNumber(number: Long): String {
     return when {
         number >= 1_000_000_000 -> String.format("%.1fB", number / 1_000_000_000.0)
@@ -80,7 +78,11 @@ fun calculateRoomTreeCost(level: Int): Long = (30.0 * Math.pow(1.12, level.toDou
 
 enum class CurrencyType { SNOWFLAKES, DONATE }
 
-data class Outfit(val id: Int, val title: String, val emoji: String, val currency: CurrencyType, val price: Long, val incomeBonus: Int, val isDefault: Boolean = false)
+data class Outfit(
+    val id: Int, val title: String, val emoji: String, val currency: CurrencyType, 
+    val price: Long, val incomeBonus: Int, val isDefault: Boolean = false,
+    @DrawableRes val imageRes: Int? = null
+)
 
 val ALL_OUTFITS = listOf(
     Outfit(0, "Обычный наряд", "👧", CurrencyType.SNOWFLAKES, 0L, 0, isDefault = true),
@@ -107,8 +109,7 @@ val ALL_OUTFITS = listOf(
 
 data class ShopItem(val name: String, val emoji: String, val cost: Long, val description: String)
 
-// НОВОЕ: Модель фонов комнаты
-data class RoomBackground(val id: Int, val title: String, val price: Long, val wallColor: Color)
+data class RoomBackground(val id: Int, val title: String, val price: Long, val wallColor: Color, @DrawableRes val imageRes: Int? = null)
 
 val ALL_BACKGROUNDS = listOf(
     RoomBackground(0, "Уютный вечер", 0L, Color(0xFF2B1A14)),
@@ -122,16 +123,21 @@ enum class GameTab(val label: String, val icon: ImageVector) {
     STREET("Улица", Icons.Filled.AcUnit)
 }
 
-// ==========================================
-// 2. СОХРАНЕНИЯ
-// ==========================================
+@Composable
+fun EmojiOrImage(emoji: String, imageRes: Int? = null, modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = 28.sp) {
+    if (imageRes != null) {
+        Image(painter = painterResource(id = imageRes), contentDescription = null, modifier = modifier)
+    } else {
+        Text(text = emoji, fontSize = fontSize, modifier = modifier)
+    }
+}
+
 data class GameSaveData(
     val snowflakes: Long, val streetTreeLevel: Int, val roomTreeLevel: Int, val catSatiety: Int,
     val lastUpdateTime: Long, val lastDailyRewardDay: String, val bowlLevel: Int, val clickPower: Int,
     val purchasedOutfitIds: Set<Int>, val currentOutfitId: Int, val donateBalance: Long,
     val isMusicEnabled: Boolean, val isSfxEnabled: Boolean, val isVibrationEnabled: Boolean,
     val musicVolume: Float, val sfxVolume: Float, val snowIntensity: Float,
-    // НОВОЕ: Сохранение фонов
     val currentBackgroundId: Int, val purchasedBackgroundIds: Set<Int>
 )
 
@@ -151,7 +157,6 @@ object GameStorage {
             musicVolume = prefs.getFloat("music_volume", 0.5f),
             sfxVolume = prefs.getFloat("sfx_volume", 0.8f),
             snowIntensity = prefs.getFloat("snow_intensity", 1.0f),
-            // НОВОЕ: Загрузка фонов
             currentBackgroundId = prefs.getInt("current_background_id", 0),
             purchasedBackgroundIds = prefs.getStringSet("purchased_backgrounds", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0)
         )
@@ -167,16 +172,12 @@ object GameStorage {
             .putBoolean("is_music_enabled", data.isMusicEnabled).putBoolean("is_sfx_enabled", data.isSfxEnabled)
             .putBoolean("is_vibration_enabled", data.isVibrationEnabled).putFloat("music_volume", data.musicVolume)
             .putFloat("sfx_volume", data.sfxVolume).putFloat("snow_intensity", data.snowIntensity)
-            // НОВОЕ: Сохранение фонов
             .putInt("current_background_id", data.currentBackgroundId)
             .putStringSet("purchased_backgrounds", data.purchasedBackgroundIds.map { it.toString() }.toSet())
             .apply()
     }
 }
 
-// ==========================================
-// 3. ГЛАВНЫЙ ЭКРАН
-// ==========================================
 @Composable
 fun MainScreen(onExitToMenu: () -> Unit) {
     val context = LocalContext.current
@@ -194,8 +195,6 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var lastDailyRewardDay by remember { mutableStateOf(savedState.lastDailyRewardDay) }
     var purchasedOutfits by remember { mutableStateOf(savedState.purchasedOutfitIds) }
     var currentOutfitId by remember { mutableIntStateOf(savedState.currentOutfitId) }
-
-    // НОВОЕ: Состояния фонов
     var currentBackgroundId by remember { mutableIntStateOf(savedState.currentBackgroundId) }
     var purchasedBackgrounds by remember { mutableStateOf(savedState.purchasedBackgroundIds) }
 
@@ -217,7 +216,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isFeedCatDialogOpen by remember { mutableStateOf(false) }
     var isTvOpen by remember { mutableStateOf(false) }
-    var isBackgroundsOpen by remember { mutableStateOf(false) } // Окно фонов
+    var isBackgroundsOpen by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(GameTab.ROOM) }
     var lightsMode by remember { mutableIntStateOf(0) }
     
@@ -268,9 +267,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
-    LaunchedEffect(musicVolume) {
-        mediaPlayer?.setVolume(musicVolume, musicVolume)
-    }
+    LaunchedEffect(musicVolume) { mediaPlayer?.setVolume(musicVolume, musicVolume) }
 
     LaunchedEffect(currentTab, isSfxEnabled) {
         if (currentTab == GameTab.ROOM && isSfxEnabled) {
@@ -282,9 +279,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         } else { fireplacePlayer?.pause() }
     }
 
-    LaunchedEffect(sfxVolume) {
-        fireplacePlayer?.setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f)
-    }
+    LaunchedEffect(sfxVolume) { fireplacePlayer?.setVolume(sfxVolume * 0.3f, sfxVolume * 0.3f) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> 
@@ -341,15 +336,12 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 val newDate = getTodayDateStr()
                 if (newDate != currentDateStr) currentDateStr = newDate
             }
-
             if (tickCounter % 10 == 0) { persistGameState() }
         }
     }
 
     var isDayTime by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        while (true) { delay(30 * 60 * 1000L); isDayTime = !isDayTime }
-    }
+    LaunchedEffect(Unit) { while (true) { delay(30 * 60 * 1000L); isDayTime = !isDayTime } }
 
     var isCatAwake by remember { mutableStateOf(false) }
     var catPlusOneTrigger by remember { mutableIntStateOf(0) }
@@ -358,20 +350,17 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     val isRoomTab = currentTab == GameTab.ROOM
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = if (isRoomTab) listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
-                    else if (isDayTime) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5))
-                    else listOf(Color(0xFF060914), Color(0xFF0C182B))
-                )
+        modifier = Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                colors = if (isRoomTab) listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
+                else if (isDayTime) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5))
+                else listOf(Color(0xFF060914), Color(0xFF0C182B))
             )
+        )
     ) {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
 
-        // ОТРИСОВКА ФОНА КОМНАТЫ (Меняется в зависимости от выбора)
         if (isRoomTab) {
             val currentBg = ALL_BACKGROUNDS.find { it.id == currentBackgroundId } ?: ALL_BACKGROUNDS[0]
             RoomInteriorScenery(wallColor = currentBg.wallColor)
@@ -389,10 +378,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.85f else 0.75f).padding(bottom = 20.dp).scale(0.8f * tabletScale), contentAlignment = Alignment.BottomCenter) {
                 ChristmasTree25D(isRoom = false, treeLevel = streetTreeLevel, garlandMode = lightsMode, onTreeClick = {
                     if (streetTreeLevel == 0) showToast("Ёлочка пока без украшений! Улучши её ✨")
-                    else { 
-                        vibrate()
-                        lightsMode = (lightsMode + 1) % 3; snowflakesState.longValue += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️ за украшение елки!") 
-                    }
+                    else { vibrate(); lightsMode = (lightsMode + 1) % 3; snowflakesState.longValue += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️ за украшение елки!") }
                 })
             }
 
@@ -404,11 +390,9 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 val canUpgrade = snowflakesState.longValue >= upgradeCost && streetTreeLevel < 30
                 Surface(shape = RoundedCornerShape(16.dp), color = if (canUpgrade) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent), shadowElevation = 6.dp, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
                     if (canUpgrade) { 
-                        vibrate()
-                        if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
                         snowflakesState.longValue -= upgradeCost; streetTreeLevel += 1; persistGameState(); showToast("Уличная ёлка улучшена! ✨ Ур. $streetTreeLevel") 
-                    } else if (streetTreeLevel >= 30) showToast("Ёлка максимального уровня!")
-                    else showToast("Нужно ${formatNumber(upgradeCost)} ❄️!")
+                    } else if (streetTreeLevel >= 30) showToast("Ёлка максимального уровня!") else showToast("Нужно ${formatNumber(upgradeCost)} ❄️!")
                 }) {
                     Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "⭐", fontSize = 12.sp); Spacer(modifier = Modifier.width(5.dp))
@@ -421,8 +405,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         if (isRoomTab) {
             Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.92f else 0.88f).padding(bottom = 20.dp).scale(0.70f * tabletScale), contentAlignment = Alignment.BottomCenter) {
                 ChristmasTree25D(isRoom = true, treeLevel = roomTreeLevel, garlandMode = lightsMode, onTreeClick = {
-                    vibrate()
-                    snowflakesState.longValue += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️")
+                    vibrate(); snowflakesState.longValue += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️")
                 })
             }
 
@@ -431,8 +414,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 val canUpgradeRoom = snowflakesState.longValue >= roomCost && roomTreeLevel < 15
                 Surface(shape = RoundedCornerShape(16.dp), color = if (canUpgradeRoom) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent), shadowElevation = 6.dp, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
                     if (canUpgradeRoom) { 
-                        vibrate()
-                        if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
                         snowflakesState.longValue -= roomCost; roomTreeLevel += 1; persistGameState(); showToast("Комнатная ёлка улучшена! ✨ Ур. $roomTreeLevel") 
                     } else showToast("Нужно ${formatNumber(roomCost)} ❄️!")
                 }) {
@@ -447,75 +429,54 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 InteractiveCat(isRoom = true, satiety = catSatiety, isAwake = isCatAwake, plusOneTrigger = catPlusOneTrigger, bowlLevel = bowlLevel, canUpgradeBowl = snowflakesState.longValue >= calculateStreetTreeCost(bowlLevel), onUpgradeBowl = {
                     val cost = calculateStreetTreeCost(bowlLevel)
                     if (snowflakesState.longValue >= cost) { 
-                        vibrate()
-                        if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
                         snowflakesState.longValue -= cost; bowlLevel += 1; persistGameState(); showToast("Миска улучшена! 🥣✨") 
                     } else showToast("Мало снежинок! Нужно ${formatNumber(cost)} ❄️")
                 }, onBowlClick = { vibrate(); isFeedCatDialogOpen = true }, onCatClick = {
                     if (catSatiety > 0) { 
-                        vibrate()
-                        snowflakesState.longValue += clickPower.toLong(); catPlusOneTrigger++; isCatAwake = true; persistGameState(); coroutineScope.launch { delay(1000); isCatAwake = false } 
+                        vibrate(); snowflakesState.longValue += clickPower.toLong(); catPlusOneTrigger++; isCatAwake = true; persistGameState(); coroutineScope.launch { delay(1000); isCatAwake = false } 
                     } else { vibrate(); isFeedCatDialogOpen = true }
                 }, clickPower = clickPower)
             }
 
             Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 60.dp, bottom = 140.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Black,
-                        border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray),
-                        modifier = Modifier.size(70.dp, 50.dp).clickable { vibrate(); isTvOpen = true }
-                    ) { Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 30.sp) } }
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color.Black, border = androidx.compose.foundation.BorderStroke(4.dp, Color.DarkGray), modifier = Modifier.size(70.dp, 50.dp).clickable { vibrate(); isTvOpen = true }) { Box(contentAlignment = Alignment.Center) { Text("📺", fontSize = 30.sp) } }
                     Box(modifier = Modifier.width(100.dp).height(15.dp).background(Color(0xFF5C3A21), RoundedCornerShape(4.dp)))
                 }
             }
 
             Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 40.dp, top = 100.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp), color = Color.White,
-                        modifier = Modifier.size(50.dp, 60.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }
-                    ) {
+                    Surface(shape = RoundedCornerShape(4.dp), color = Color.White, modifier = Modifier.size(50.dp, 60.dp).clickable { vibrate(); showToast("Скоро Новый Год! 🎄") }) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(modifier = Modifier.fillMaxWidth().height(15.dp).background(Color.Red))
                             Text("31", color = Color.Black, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
-                    Box(
-                        modifier = Modifier.width(120.dp).height(90.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Text("🔥", fontSize = 40.sp, modifier = Modifier.padding(bottom = 10.dp))
-                    }
+                    Box(modifier = Modifier.width(120.dp).height(90.dp).background(Color(0xFF4A2511), RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)), contentAlignment = Alignment.BottomCenter) { Text("🔥", fontSize = 40.sp, modifier = Modifier.padding(bottom = 10.dp)) }
                 }
             }
         }
 
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 28.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
-                InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { 
-                    vibrate()
-                    snowflakesState.longValue += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() 
-                }, clickPower = clickPower)
+                InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { vibrate(); snowflakesState.longValue += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() }, clickPower = clickPower)
             }
             SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
         }
 
         DailyRewardButton(isClaimedToday = lastDailyRewardDay == currentDateStr, onClaimReward = {
             if (lastDailyRewardDay != currentDateStr) { 
-                vibrate()
-                if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
                 snowflakesState.longValue += 100; lastDailyRewardDay = currentDateStr; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") 
             } else showToast("Вы уже забрали подарок сегодня! 🎁")
         }, modifier = Modifier.align(Alignment.TopStart).padding(top = 10.dp, start = 16.dp))
 
         SnowflakeCounterTop(snowflakes = snowflakesState.longValue, incomeRate = effectiveIncomeRate, donateBalance = donateBalance, modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp))
 
-        // ВЕРХНИЕ КНОПКИ
         Row(modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // НОВАЯ КНОПКА ФОНОВ (Только в комнате)
             if (isRoomTab) {
                 IconButton(onClick = { vibrate(); isBackgroundsOpen = true }, modifier = Modifier.size(36.dp).clip(CircleShape).background(NightSurfaceVariant.copy(alpha = 0.85f)).border(1.dp, IceCyan.copy(alpha = 0.5f), CircleShape)) { Text(text = "🖼️", fontSize = 16.sp) }
             }
@@ -558,38 +519,15 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             )
         }
 
-        // НОВОЕ ОКНО: ВЫБОР ФОНОВ
         if (isBackgroundsOpen) {
-            BackgroundDialog(
-                snowflakes = snowflakesState.longValue,
-                purchasedBackgrounds = purchasedBackgrounds,
-                currentBackgroundId = currentBackgroundId,
-                onDismiss = { isBackgroundsOpen = false },
-                onBuyBackground = { bg ->
-                    if (snowflakesState.longValue >= bg.price) {
-                        vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                        snowflakesState.longValue -= bg.price
-                        purchasedBackgrounds = purchasedBackgrounds + bg.id
-                        currentBackgroundId = bg.id
-                        persistGameState()
-                        showToast("Куплен фон: ${bg.title}!")
-                    } else showToast("Мало снежинок!")
-                },
-                onEquipBackground = { bg -> vibrate(); currentBackgroundId = bg.id; persistGameState(); showToast("Выбран фон: ${bg.title}") }
+            BackgroundDialog(snowflakes = snowflakesState.longValue, purchasedBackgrounds = purchasedBackgrounds, currentBackgroundId = currentBackgroundId, onDismiss = { isBackgroundsOpen = false }, onBuyBackground = { bg ->
+                    if (snowflakesState.longValue >= bg.price) { vibrate(); if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f); snowflakesState.longValue -= bg.price; purchasedBackgrounds = purchasedBackgrounds + bg.id; currentBackgroundId = bg.id; persistGameState(); showToast("Куплен фон: ${bg.title}!") } else showToast("Мало снежинок!")
+                }, onEquipBackground = { bg -> vibrate(); currentBackgroundId = bg.id; persistGameState(); showToast("Выбран фон: ${bg.title}") }
             )
         }
 
         if (isSettingsOpen) {
-            SettingsDialog(
-                snowIntensity, onIntensityChange = { snowIntensity = it },
-                isMusicEnabled, onMusicToggle = { isMusicEnabled = it },
-                isSfxEnabled, onSfxToggle = { isSfxEnabled = it },
-                isVibrationEnabled, onVibrationToggle = { isVibrationEnabled = it },
-                musicVolume, onMusicVolumeChange = { musicVolume = it },
-                sfxVolume, onSfxVolumeChange = { sfxVolume = it },
-                onDismiss = { isSettingsOpen = false; persistGameState() },
-                onExitToMenu = onExitToMenu
-            )
+            SettingsDialog(snowIntensity, onIntensityChange = { snowIntensity = it }, isMusicEnabled, onMusicToggle = { isMusicEnabled = it }, isSfxEnabled, onSfxToggle = { isSfxEnabled = it }, isVibrationEnabled, onVibrationToggle = { isVibrationEnabled = it }, musicVolume, onMusicVolumeChange = { musicVolume = it }, sfxVolume, onSfxVolumeChange = { sfxVolume = it }, onDismiss = { isSettingsOpen = false; persistGameState() }, onExitToMenu = onExitToMenu)
         }
 
         if (isTvOpen) {
@@ -608,23 +546,10 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     }
 }
 
-// ==========================================
-// 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И КОМПОНЕНТЫ
-// ==========================================
-fun getTodayDateStr(): String {
-    return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-}
+fun getTodayDateStr(): String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
 
-// НОВОЕ ОКНО ГАРДЕРОБА ФОНОВ
 @Composable
-fun BackgroundDialog(
-    snowflakes: Long,
-    purchasedBackgrounds: Set<Int>,
-    currentBackgroundId: Int,
-    onDismiss: () -> Unit,
-    onBuyBackground: (RoomBackground) -> Unit,
-    onEquipBackground: (RoomBackground) -> Unit
-) {
+fun BackgroundDialog(snowflakes: Long, purchasedBackgrounds: Set<Int>, currentBackgroundId: Int, onDismiss: () -> Unit, onBuyBackground: (RoomBackground) -> Unit, onEquipBackground: (RoomBackground) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.55f)), modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -640,21 +565,14 @@ fun BackgroundDialog(
                         val isPurchased = purchasedBackgrounds.contains(bg.id)
                         val isEquipped = currentBackgroundId == bg.id
                         Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NightSurfaceVariant).border(1.dp, if (isEquipped) IceCyan else Color.Transparent, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // Иконка фона
-                            Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(bg.wallColor), contentAlignment = Alignment.Center) {
-                                Text("🪟", fontSize = 24.sp)
-                            }
+                            Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(bg.wallColor), contentAlignment = Alignment.Center) { Text("🪟", fontSize = 24.sp) }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(bg.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Column(modifier = Modifier.weight(1f)) { Text(bg.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
                             if (isEquipped) Text("Выбран", color = IceCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             else if (isPurchased) Button(onClick = { onEquipBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = IceCyan)) { Text("Выбрать", color = Color.Black, fontSize = 12.sp) }
                             else {
                                 val canBuy = snowflakes >= bg.price
-                                Button(onClick = { onBuyBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = if (canBuy) GoldAccent else Color.DarkGray)) {
-                                    Text("${formatNumber(bg.price)} ❄️", color = if (canBuy) Color.Black else SnowSoft, fontSize = 12.sp)
-                                }
+                                Button(onClick = { onBuyBackground(bg) }, colors = ButtonDefaults.buttonColors(containerColor = if (canBuy) GoldAccent else Color.DarkGray)) { Text("${formatNumber(bg.price)} ❄️", color = if (canBuy) Color.Black else SnowSoft, fontSize = 12.sp) }
                             }
                         }
                     }
@@ -669,14 +587,10 @@ fun HolidayHostsBackground(currentOutfit: Outfit, onHostClick: () -> Unit, modif
     val transition = rememberInfiniteTransition(label = "HostsIdle")
     val sway by transition.animateFloat(initialValue = -1.5f, targetValue = 1.5f, animationSpec = infiniteRepeatable(animation = tween(2200, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse), label = "HostsSway")
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = modifier.offset(y = sway.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) { Text(text = "🎅", fontSize = 38.sp); Text(text = "Дед Мороз", color = HolidayRed, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) {
-            Text(text = "🎅", fontSize = 38.sp); Text(text = "Дед Мороз", color = HolidayRed, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onHostClick() }) {
-            Text(text = currentOutfit.emoji, fontSize = 35.sp)
-            Surface(shape = RoundedCornerShape(6.dp), color = NightSurfaceVariant.copy(alpha = 0.8f), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.5f))) {
-                Text(text = currentOutfit.title, color = IceCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-            }
+            EmojiOrImage(emoji = currentOutfit.emoji, imageRes = currentOutfit.imageRes, fontSize = 35.sp)
+            Surface(shape = RoundedCornerShape(6.dp), color = NightSurfaceVariant.copy(alpha = 0.8f), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.5f))) { Text(text = currentOutfit.title, color = IceCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) }
         }
     }
 }
@@ -825,7 +739,7 @@ fun WardrobeDialog(snowflakes: Long, donateBalance: Long, purchasedOutfits: Set<
                         val isPurchased = purchasedOutfits.contains(outfit.id)
                         val isEquipped = currentOutfitId == outfit.id
                         Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NightSurfaceVariant).border(1.dp, if (isEquipped) GoldAccent else Color.Transparent, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(outfit.emoji, fontSize = 28.sp); Spacer(modifier = Modifier.width(12.dp))
+                            EmojiOrImage(emoji = outfit.emoji, imageRes = outfit.imageRes); Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(outfit.title, color = SnowWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text("+${outfit.incomeBonus} ❄️/сек", color = Color(0xFF52B788), fontSize = 12.sp)
@@ -920,19 +834,15 @@ fun GameToast(message: String?, modifier: Modifier = Modifier) {
     }
 }
 
-// ОБНОВЛЕННЫЙ ФОН КОМНАТЫ (Принимает цвет стены)
 @Composable
 fun RoomInteriorScenery(wallColor: Color = Color(0xFF2B1A14)) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width; val h = size.height; val floorY = h * 0.74f; val ceilingY = h * 0.1f
         drawRect(color = Color(0xFF1A0F0A), topLeft = Offset(0f, 0f), size = Size(w, ceilingY))
-        // Стена меняет цвет
         drawRect(brush = Brush.verticalGradient(colors = listOf(wallColor, wallColor.copy(alpha = 0.6f))), topLeft = Offset(0f, ceilingY), size = Size(w, floorY - ceilingY))
-        
         val winX = w * 0.08f; val winY = h * 0.16f; val winW = w * 0.26f; val winH = h * 0.48f
         drawRoundRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF060F24), Color(0xFF0D1B38), Color(0xFF192A4E)), startY = winY, endY = winY + winH), topLeft = Offset(winX, winY), size = Size(winW, winH), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
         drawRoundRect(color = Color(0xFF4A2511), topLeft = Offset(winX - 6.dp.toPx(), winY - 6.dp.toPx()), size = Size(winW + 12.dp.toPx(), winH + 12.dp.toPx()), cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()), style = Stroke(width = 6.dp.toPx()))
-        
         drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF4A2612), Color(0xFF2E170A)), startY = floorY, endY = h), topLeft = Offset(0f, floorY), size = Size(w, h - floorY))
         drawRect(brush = Brush.verticalGradient(colors = listOf(Color(0xFF5C2E15), Color(0xFF3E1C0D))), topLeft = Offset(0f, floorY - 10.dp.toPx()), size = Size(w, 12.dp.toPx()))
     }
@@ -1024,17 +934,12 @@ fun SettingsDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Кнопка выхода в меню
-                Button(
-                    onClick = { onDismiss(); onExitToMenu() }, 
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B1E32)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Button(onClick = { onDismiss(); onExitToMenu() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B1E32)), modifier = Modifier.fillMaxWidth()) {
                     Text("В главное меню", color = SnowWhite)
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 5.5 • Фоны комнаты 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 6.0 • Альбом и Меню 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
