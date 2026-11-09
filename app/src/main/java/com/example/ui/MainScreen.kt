@@ -1,6 +1,9 @@
 package com.example.ui
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.SoundPool
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -17,7 +20,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image // <--- НОВЫЙ ИМПОРТ
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,11 +45,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale // <--- НОВЫЙ ИМПОРТ
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource // <--- НОВЫЙ ИМПОРТ
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,7 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.example.R // <--- НОВЫЙ ИМПОРТ
+import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -189,6 +192,92 @@ fun MainScreen() {
     var isMusicEnabled by remember { mutableStateOf(true) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
+    // === СИСТЕМА ЗВУКОВ И ПЛЕЙЛИСТА ===
+    val soundPool = remember { 
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
+    }
+    val clickSoundId = remember { soundPool.load(context, R.raw.click, 1) }
+    val coinSoundId = remember { soundPool.load(context, R.raw.coin, 1) }
+    val cashSoundId = remember { soundPool.load(context, R.raw.cash_register, 1) }
+    
+    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var fireplacePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    
+    // ПЛЕЙЛИСТ (Добавлены music4 и music5)
+    val musicPlaylist = remember { 
+        listOf(
+            R.raw.music1, 
+            R.raw.music2, 
+            R.raw.music3,
+            R.raw.music4,
+            R.raw.music5
+        ) 
+    }
+    var currentSongIndex by remember { mutableIntStateOf(0) }
+
+    // Запуск музыки и переключение треков
+    LaunchedEffect(isMusicEnabled, currentSongIndex) {
+        if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
+            mediaPlayer?.release()
+            if (currentSongIndex < musicPlaylist.size) {
+                mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
+                    setVolume(0.3f, 0.3f)
+                    setOnCompletionListener {
+                        currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size
+                    }
+                    start()
+                }
+            }
+        }
+    }
+
+    // Камин
+    LaunchedEffect(currentTab, isMusicEnabled) {
+        if (currentTab == GameTab.ROOM && isMusicEnabled) {
+            if (fireplacePlayer == null) {
+                fireplacePlayer = MediaPlayer.create(context, R.raw.fireplace)?.apply {
+                    isLooping = true
+                    setVolume(0.15f, 0.15f)
+                    start()
+                }
+            } else {
+                fireplacePlayer?.start()
+            }
+        } else {
+            fireplacePlayer?.pause()
+        }
+    }
+
+    // Пауза при сворачивании
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> 
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                persistGameState()
+                mediaPlayer?.pause()
+                fireplacePlayer?.pause()
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                if (isMusicEnabled) {
+                    mediaPlayer?.start()
+                    if (currentTab == GameTab.ROOM) fireplacePlayer?.start()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { 
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            fireplacePlayer?.stop()
+            fireplacePlayer?.release()
+            soundPool.release() 
+        }
+    }
+    // ======================
+
     fun showToast(msg: String) { toastMessage = msg }
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(3000); toastMessage = null } }
 
@@ -214,12 +303,6 @@ fun MainScreen() {
         persistGameState()
     }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) persistGameState() }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); persistGameState() }
-    }
-
     LaunchedEffect(Unit) {
         var tickCounter = 0
         while (true) {
@@ -237,22 +320,17 @@ fun MainScreen() {
     var snowmanPlusOneTrigger by remember { mutableIntStateOf(0) }
     val isRoomTab = currentTab == GameTab.ROOM
     
-    // ЛОГИКА ДНЯ И НОЧИ
     val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
-    val isDayTime = hour in 7..18 // День с 7 утра до 6 вечера
+    val isDayTime = hour in 7..18
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = if (isRoomTab) {
-                        listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
-                    } else {
-                        // Фон для улицы (просто базовый цвет, поверх ляжет картинка)
-                        if (isDayTime) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5))
-                        else listOf(Color(0xFF060914), Color(0xFF0C182B))
-                    }
+                    colors = if (isRoomTab) listOf(Color(0xFF240E14), Color(0xFF1D0B10), Color(0xFF17090D), Color(0xFF110609))
+                    else if (isDayTime) listOf(Color(0xFF4A90E2), Color(0xFFFFE4B5))
+                    else listOf(Color(0xFF060914), Color(0xFF0C182B))
                 )
             )
             .windowInsetsPadding(WindowInsets.statusBars)
@@ -260,7 +338,6 @@ fun MainScreen() {
         val isTablet = maxWidth > 600.dp
         val tabletScale = if (isTablet) 1.4f else 1.0f
 
-        // ЗДЕСЬ ВСТАВЛЯЕТСЯ ТВОЙ ФОН
         if (isRoomTab) RoomInteriorScenery() else StreetExteriorScenery(isDay = isDayTime)
         
         SnowfallLayer(isForeground = false, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.5f)
@@ -272,7 +349,10 @@ fun MainScreen() {
         Box(modifier = Modifier.align(Alignment.Center).fillMaxHeight(if (isTablet) 0.92f else 0.88f).padding(bottom = 20.dp).scale((if (isRoomTab) 0.70f else 1.0f) * tabletScale), contentAlignment = Alignment.BottomCenter) {
             ChristmasTree25D(isRoom = isRoomTab, treeLevel = treeLevel, garlandMode = lightsMode, onTreeClick = {
                 if (treeLevel == 0) showToast("Ёлочка пока без украшений! Улучши её ✨")
-                else { lightsMode = (lightsMode + 1) % 3; snowflakes += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️ за украшение елки!") }
+                else { 
+                    soundPool.play(clickSoundId, 1f, 1f, 0, 0, 1f)
+                    lightsMode = (lightsMode + 1) % 3; snowflakes += clickPower.toLong(); persistGameState(); showToast("+${clickPower} ❄️ за украшение елки!") 
+                }
             })
         }
 
@@ -284,7 +364,10 @@ fun MainScreen() {
             val upgradeCost = calculateUpgradeCost(50L, treeLevel)
             val canUpgrade = snowflakes >= upgradeCost
             Surface(shape = RoundedCornerShape(16.dp), color = if (canUpgrade) GoldAccent else NightSurfaceVariant.copy(alpha = 0.95f), border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent), shadowElevation = 6.dp, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
-                if (canUpgrade) { snowflakes -= upgradeCost; treeLevel += 1; incomeRate += 1; persistGameState(); showToast("Ёлка стала краше! ✨ Ур. $treeLevel") }
+                if (canUpgrade) { 
+                    soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                    snowflakes -= upgradeCost; treeLevel += 1; incomeRate += 1; persistGameState(); showToast("Ёлка стала краше! ✨ Ур. $treeLevel") 
+                }
                 else showToast("Нужно ${formatNumber(upgradeCost)} ❄️!")
             }) {
                 Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -299,10 +382,16 @@ fun MainScreen() {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 24.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
                 InteractiveCat(isRoom = true, satiety = catSatiety, isAwake = isCatAwake, plusOneTrigger = catPlusOneTrigger, bowlLevel = bowlLevel, canUpgradeBowl = snowflakes >= calculateUpgradeCost(30L, bowlLevel), onUpgradeBowl = {
                     val cost = calculateUpgradeCost(30L, bowlLevel)
-                    if (snowflakes >= cost) { snowflakes -= cost; bowlLevel += 1; incomeRate += 1; persistGameState(); showToast("Миска улучшена! 🥣✨") }
+                    if (snowflakes >= cost) { 
+                        soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                        snowflakes -= cost; bowlLevel += 1; incomeRate += 1; persistGameState(); showToast("Миска улучшена! 🥣✨") 
+                    }
                     else showToast("Недостаточно снежинок! Нужно ${formatNumber(cost)} ❄️")
                 }, onBowlClick = { isFeedCatDialogOpen = true }, onCatClick = {
-                    if (catSatiety > 0) { snowflakes += clickPower.toLong(); catPlusOneTrigger++; isCatAwake = true; persistGameState(); coroutineScope.launch { delay(1000); isCatAwake = false } }
+                    if (catSatiety > 0) { 
+                        soundPool.play(clickSoundId, 1f, 1f, 0, 0, 1f)
+                        snowflakes += clickPower.toLong(); catPlusOneTrigger++; isCatAwake = true; persistGameState(); coroutineScope.launch { delay(1000); isCatAwake = false } 
+                    }
                     else isFeedCatDialogOpen = true
                 }, clickPower = clickPower)
             }
@@ -310,14 +399,20 @@ fun MainScreen() {
 
         if (!isRoomTab) {
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(start = if (isTablet) 36.dp else 28.dp, bottom = if (isTablet) 86.dp else 76.dp).scale(tabletScale)) {
-                InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { snowflakes += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() }, clickPower = clickPower)
+                InteractiveSnowman(plusOneTrigger = snowmanPlusOneTrigger, onSnowmanClick = { 
+                    soundPool.play(clickSoundId, 1f, 1f, 0, 0, 1f)
+                    snowflakes += clickPower.toLong(); snowmanPlusOneTrigger++; persistGameState() 
+                }, clickPower = clickPower)
             }
         }
 
         if (!isRoomTab) SnowfallLayer(isForeground = true, intensity = snowIntensity * 1.4f)
 
         DailyRewardButton(isClaimedToday = isDailyRewardClaimedToday, onClaimReward = {
-            if (!isDailyRewardClaimedToday) { snowflakes += 100; lastDailyRewardDay = todayDateStr; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") }
+            if (!isDailyRewardClaimedToday) { 
+                soundPool.play(coinSoundId, 1f, 1f, 0, 0, 1f)
+                snowflakes += 100; lastDailyRewardDay = todayDateStr; persistGameState(); showToast("Подарок получен! +100 ❄️ 🎁") 
+            }
             else showToast("Вы уже забрали подарок сегодня! 🎁")
         }, modifier = Modifier.align(Alignment.TopStart).padding(top = 10.dp, start = 16.dp))
 
@@ -331,21 +426,32 @@ fun MainScreen() {
 
         GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
 
-        // НИЖНЯЯ ПАНЕЛЬ (КОМПАКТНАЯ)
         GameBottomNavigationBar(currentTab = currentTab, onTabSelected = { tab -> currentTab = tab }, modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars))
 
         if (isShopOpen) {
             ShopDialog(snowflakes = snowflakes, clickPower = clickPower, treeLevel = treeLevel, onDismiss = { isShopOpen = false }, onBuyItem = { itemIndex, cost ->
                 when (itemIndex) {
-                    0 -> if (snowflakes >= 15) { snowflakes -= 15; catSatiety = (catSatiety + 30).coerceAtMost(100); persistGameState(); showToast("Мур! Кот покормлен 🐟") } else showToast("Мало снежинок!")
+                    0 -> if (snowflakes >= 15) { 
+                        soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                        snowflakes -= 15; catSatiety = (catSatiety + 30).coerceAtMost(100); persistGameState(); showToast("Мур! Кот покормлен 🐟") 
+                    } else showToast("Мало снежинок!")
                     1 -> {
                         val costTree = calculateUpgradeCost(50L, treeLevel)
-                        if (snowflakes >= costTree) { snowflakes -= costTree; treeLevel += 1; incomeRate += 1; persistGameState(); showToast("Звезда установлена! ⭐") } else showToast("Мало снежинок!")
+                        if (snowflakes >= costTree) { 
+                            soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                            snowflakes -= costTree; treeLevel += 1; incomeRate += 1; persistGameState(); showToast("Звезда установлена! ⭐") 
+                        } else showToast("Мало снежинок!")
                     }
-                    2 -> if (snowflakes >= 100) { snowflakes -= 100; lightsMode = 1; persistGameState(); showToast("Гирлянда установлена! 💡✨") } else showToast("Мало снежинок!")
+                    2 -> if (snowflakes >= 100) { 
+                        soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                        snowflakes -= 100; lightsMode = 1; persistGameState(); showToast("Гирлянда установлена! 💡✨") 
+                    } else showToast("Мало снежинок!")
                     3 -> {
                         val costClick = calculateUpgradeCost(20L, clickPower)
-                        if (snowflakes >= costClick) { snowflakes -= costClick; clickPower += 1; persistGameState(); showToast("Сила клика увеличена! 👆✨") } else showToast("Мало снежинок!")
+                        if (snowflakes >= costClick) { 
+                            soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                            snowflakes -= costClick; clickPower += 1; persistGameState(); showToast("Сила клика увеличена! 👆✨") 
+                        } else showToast("Мало снежинок!")
                     }
                 }
             })
@@ -353,7 +459,10 @@ fun MainScreen() {
 
         if (isFeedCatDialogOpen) {
             FeedCatDialog(snowflakes = snowflakes, currentSatiety = catSatiety, onDismiss = { isFeedCatDialogOpen = false }, onConfirmFeed = {
-                if (snowflakes >= 15) { snowflakes -= 15; catSatiety = (catSatiety + 30).coerceAtMost(100); persistGameState(); showToast("Кот покормлен 🐟") } else showToast("Мало снежинок!")
+                if (snowflakes >= 15) { 
+                    soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                    snowflakes -= 15; catSatiety = (catSatiety + 30).coerceAtMost(100); persistGameState(); showToast("Кот покормлен 🐟") 
+                } else showToast("Мало снежинок!")
                 isFeedCatDialogOpen = false
             })
         }
@@ -361,7 +470,10 @@ fun MainScreen() {
         if (isWardrobeOpen) {
             WardrobeDialog(snowflakes = snowflakes, currentOutfit = currentMaidenOutfit, hasWinterCoat = hasWinterCoat, onSelectDefault = { currentMaidenOutfit = MaidenOutfit.DEFAULT; persistGameState(); isWardrobeOpen = false }, onBuyOrEquipCoat = {
                 if (hasWinterCoat) { currentMaidenOutfit = MaidenOutfit.WINTER_COAT; persistGameState(); isWardrobeOpen = false }
-                else if (snowflakes >= 100) { snowflakes -= 100; hasWinterCoat = true; currentMaidenOutfit = MaidenOutfit.WINTER_COAT; incomeRate += 2; persistGameState(); isWardrobeOpen = false; showToast("Шуба куплена! +2 ❄️/сек") }
+                else if (snowflakes >= 100) { 
+                    soundPool.play(cashSoundId, 1f, 1f, 0, 0, 1f)
+                    snowflakes -= 100; hasWinterCoat = true; currentMaidenOutfit = MaidenOutfit.WINTER_COAT; incomeRate += 2; persistGameState(); isWardrobeOpen = false; showToast("Шуба куплена! +2 ❄️/сек") 
+                }
                 else showToast("Мало снежинок! Нужно 100 ❄️")
             }, onDismiss = { isWardrobeOpen = false })
         }
@@ -689,9 +801,6 @@ fun RoomInteriorScenery() {
     }
 }
 
-// ==========================================
-// НОВАЯ ФУНКЦИЯ ДЛЯ УЛИЦЫ С КАРТИНКАМИ
-// ==========================================
 @Composable
 fun StreetExteriorScenery(isDay: Boolean) {
     val backgroundImage = if (isDay) {
@@ -776,7 +885,7 @@ fun SettingsDialog(snowIntensity: Float, onIntensityChange: (Float) -> Unit, isM
                     Switch(checked = isMusicEnabled, onCheckedChange = onMusicToggle, colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldAccentDark))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 1.9 • День/Ночь 💾✨", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 2.2 • Звук камина и кассы 💾✨", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
