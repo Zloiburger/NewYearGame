@@ -167,7 +167,8 @@ object GameStorage {
             lastDailyRewardDay = prefs.getString("last_daily_reward_day", "") ?: "",
             bowlLevel = prefs.getInt("bowl_level", 0),
             clickPower = prefs.getInt("click_power", 1),
-            purchasedOutfitIds = prefs.getStringSet("purchased_outfits", setOf(0))?.map { it.toInt() }?.toSet() ?: setOf(0),
+            // ИСПРАВЛЕНИЕ 1: setOf("0") вместо setOf(0)
+            purchasedOutfitIds = prefs.getStringSet("purchased_outfits", setOf("0"))?.map { it.toInt() }?.toSet() ?: setOf(0),
             currentOutfitId = prefs.getInt("current_outfit_id", 0),
             donateBalance = prefs.getLong("donate_balance", 0L)
         )
@@ -269,6 +270,15 @@ fun MainScreen() {
     val musicPlaylist = remember { listOf(R.raw.music1, R.raw.music2, R.raw.music3, R.raw.music4, R.raw.music5) }
     var currentSongIndex by remember { mutableIntStateOf(0) }
 
+    // ИСПРАВЛЕНИЕ 2: Перенесли объявление функции persistGameState ВЫШЕ, до DisposableEffect
+    fun persistGameState() {
+        GameStorage.save(context, GameSaveData(
+            snowflakes, streetTreeLevel, roomTreeLevel, catSatiety,
+            System.currentTimeMillis(), lastDailyRewardDay, bowlLevel, clickPower,
+            purchasedOutfits, currentOutfitId, donateBalance
+        ))
+    }
+
     LaunchedEffect(isMusicEnabled, currentSongIndex) {
         if (isMusicEnabled && musicPlaylist.isNotEmpty()) {
             mediaPlayer?.release()
@@ -295,7 +305,7 @@ fun MainScreen() {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> 
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
-                persistGameState()
+                persistGameState() // Теперь функция видна здесь!
                 mediaPlayer?.pause(); fireplacePlayer?.pause()
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 if (isMusicEnabled) { mediaPlayer?.start(); if (currentTab == GameTab.ROOM) fireplacePlayer?.start() }
@@ -312,14 +322,6 @@ fun MainScreen() {
 
     fun showToast(msg: String) { toastMessage = msg }
     LaunchedEffect(toastMessage) { if (toastMessage != null) { delay(3000); toastMessage = null } }
-
-    fun persistGameState() {
-        GameStorage.save(context, GameSaveData(
-            snowflakes, streetTreeLevel, roomTreeLevel, catSatiety,
-            System.currentTimeMillis(), lastDailyRewardDay, bowlLevel, clickPower,
-            purchasedOutfits, currentOutfitId, donateBalance
-        ))
-    }
 
     // Оффлайн доход
     LaunchedEffect(Unit) {
