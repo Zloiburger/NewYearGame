@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -70,9 +70,19 @@ fun App() {
 fun SplashScreen(onTimeout: () -> Unit) {
     LaunchedEffect(Unit) { delay(2000); onTimeout() }
     Box(
-        modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0D1321), Color(0xFF131D31)))),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
+        // Твоя красивая картинка на фоне загрузки
+        Image(
+            painter = painterResource(id = R.drawable.bg_day),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        // Затемнение, чтобы текст читался
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+        
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = "🎄", fontSize = 80.sp, modifier = Modifier.scale(1.2f))
             Spacer(modifier = Modifier.height(16.dp))
