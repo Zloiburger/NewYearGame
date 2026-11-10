@@ -22,6 +22,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -85,7 +86,7 @@ object GameLogger {
 }
 
 // ==========================================
-// БЕЗОПАСНЫЙ ЗАПУСК МУЗЫКИ (ВНЕ @Composable)
+// БЕЗОПАСНЫЙ ЗАПУСК МУЗЫКИ
 // ==========================================
 fun createSafeMediaPlayer(context: Context, resId: Int, name: String, isLooping: Boolean = false): MediaPlayer? {
     return try {
@@ -471,6 +472,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
 
+        // ФОН
         Image(
             painter = painterResource(id = if (isRoomTab) R.drawable.bg_winter else R.drawable.bg_forest),
             contentDescription = null,
@@ -480,11 +482,123 @@ fun MainScreen(onExitToMenu: () -> Unit) {
 
         SnowfallLayer(isForeground = false, quality = graphicsQuality, intensity = if (isRoomTab) snowIntensity * 0.40f else snowIntensity * 1.2f)
 
+        // ВЕРХНЯЯ ПАНЕЛЬ (БАЛАНС)
+        TopCurrencyPanel(
+            snowflakes = snowflakes.toLong(),
+            donateBalance = 0L,
+            incomeRate = currentSnapshot.totalCps.toLong(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 30.dp)
+        )
+
+        // ПОДАРОК
+        DailyRewardButton(
+            isClaimedToday = isDailyRewardClaimedToday,
+            onClaimReward = {
+                if (!isDailyRewardClaimedToday) {
+                    vibrate()
+                    if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                    snowflakes += 100.0
+                    lastDailyRewardDay = todayDateStr
+                    persistGameState()
+                    showToast("Подарок получен! +100 снежинок")
+                } else {
+                    showToast("Уже получен сегодня! Загляни завтра")
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 30.dp, start = 16.dp)
+        )
+
+        // КНОПКА УЛИЦА/КОМНАТА
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFF141A33).copy(alpha = 0.92f),
+            border = BorderStroke(1.dp, GoldAccent.copy(alpha = 0.6f)),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 30.dp, end = 16.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                    vibrate()
+                    currentTab = if (isRoomTab) GameTab.STREET else GameTab.ROOM
+                }
+        ) {
+            Text(
+                text = if (isRoomTab) "На улицу" else "В комнату",
+                color = GoldAccent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+
+        // ЛЕВЫЙ ПЕРСОНАЖ (КОЗЛИК)
+        Image(
+            painter = painterResource(id = R.drawable.goat_hero),
+            contentDescription = "Козлик",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 8.dp)
+                .width(100.dp) // Жестко задаем размер
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp))
+                .border(2.dp, GoldAccent, RoundedCornerShape(12.dp)) // Красивая рамка
+                .clickable { vibrate(); showToast("С Новым Годом! Козлик 2027!") }
+        )
+
+        // ПРАВЫЕ ПЕРСОНАЖИ (СНЕГОВИК + ЕНОТ)
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 8.dp)
+                .width(100.dp), // Жестко задаем размер
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            InteractiveSnowmanImage(
+                plusOneTrigger = snowmanClickTrigger,
+                onSnowmanClick = onSnowmanClick,
+                clickPower = (currentSnapshot.clickPower * 5).toLong(),
+                isReady = isSnowmanReady
+            )
+            InteractiveRaccoon(
+                satiety = catSatiety,
+                clickPower = currentSnapshot.clickPower.toLong(),
+                plusOneTrigger = raccoonClickTrigger,
+                onCatClick = {
+                    vibrate()
+                    if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
+                    snowflakes += currentSnapshot.clickPower
+                    raccoonClickTrigger++
+                    persistGameState()
+                    showToast("+${formatNumber(currentSnapshot.clickPower.toLong())}")
+                },
+                onBowlClick = {
+                    if (snowflakes >= 15 && catSatiety < 100) {
+                        vibrate()
+                        snowflakes -= 15
+                        catSatiety = (catSatiety + 30).coerceAtMost(100)
+                        persistGameState()
+                        showToast("Енот покормлен!")
+                    } else if (catSatiety >= 100) {
+                        showToast("Енот уже сыт!")
+                    } else {
+                        showToast("Нужно 15 снежинок для корма!")
+                    }
+                }
+            )
+        }
+
+        // ЦЕНТР (ЁЛКА И КНОПКА УЛУЧШЕНИЯ)
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .offset(y = (-20).dp),
+                .offset(y = 10.dp), // Сдвигаем чуть вниз
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             TreeCenter(
@@ -501,7 +615,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                     showToast("+${formatNumber(currentSnapshot.clickPower.toLong())}")
                 }
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             if (isRoomTab) {
                 val roomCost = getRoomTreeCost(roomTreeLevel + 1)
@@ -542,119 +656,14 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             }
         }
 
-        Image(
-            painter = painterResource(id = R.drawable.goat_hero),
-            contentDescription = "Козлик",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .fillMaxWidth(0.26f)
-                .aspectRatio(16f / 9f)
-                .padding(start = 6.dp)
-                .offset(y = (-30).dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { vibrate(); showToast("С Новым Годом! Козлик 2027!") }
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxWidth(0.28f)
-                .padding(end = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            InteractiveSnowmanImage(
-                plusOneTrigger = snowmanClickTrigger,
-                onSnowmanClick = onSnowmanClick,
-                clickPower = (currentSnapshot.clickPower * 5).toLong(),
-                isReady = isSnowmanReady
-            )
-            InteractiveRaccoon(
-                satiety = catSatiety,
-                clickPower = currentSnapshot.clickPower.toLong(),
-                plusOneTrigger = raccoonClickTrigger,
-                onCatClick = {
-                    vibrate()
-                    if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                    snowflakes += currentSnapshot.clickPower
-                    raccoonClickTrigger++
-                    persistGameState()
-                    showToast("+${formatNumber(currentSnapshot.clickPower.toLong())}")
-                },
-                onBowlClick = {
-                    if (snowflakes >= 15 && catSatiety < 100) {
-                        vibrate()
-                        snowflakes -= 15
-                        catSatiety = (catSatiety + 30).coerceAtMost(100)
-                        persistGameState()
-                        showToast("Енот покормлен!")
-                    } else if (catSatiety >= 100) {
-                        showToast("Енот уже сыт!")
-                    } else {
-                        showToast("Нужно 15 снежинок для корма!")
-                    }
-                }
-            )
-        }
-
         SnowfallLayer(isForeground = true, quality = graphicsQuality, intensity = snowIntensity * 1.4f)
 
-        TopCurrencyPanel(
-            snowflakes = snowflakes.toLong(),
-            donateBalance = 0L,
-            incomeRate = currentSnapshot.totalCps.toLong(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 12.dp)
-        )
-
-        DailyRewardButton(
-            isClaimedToday = isDailyRewardClaimedToday,
-            onClaimReward = {
-                if (!isDailyRewardClaimedToday) {
-                    vibrate()
-                    if (isSfxEnabled) soundPool.play(cashSoundId, sfxVolume, sfxVolume, 0, 0, 1f)
-                    snowflakes += 100.0
-                    lastDailyRewardDay = todayDateStr
-                    persistGameState()
-                    showToast("Подарок получен! +100 снежинок")
-                } else {
-                    showToast("Уже получен сегодня! Загляни завтра")
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = 12.dp, start = 12.dp)
-        )
-
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF141A33).copy(alpha = 0.92f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.6f)),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 12.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable {
-                    vibrate()
-                    currentTab = if (isRoomTab) GameTab.STREET else GameTab.ROOM
-                }
-        ) {
-            Text(
-                text = if (isRoomTab) "На улицу" else "В комнату",
-                color = GoldAccent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-            )
-        }
-
+        // НИЖНЯЯ ПАНЕЛЬ (КНОПКИ)
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                .padding(horizontal = 8.dp, vertical = 24.dp), // Отступ от низа экрана
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -665,8 +674,9 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             NavButton(iconRes = R.drawable.icon_album, label = "Альбом", onClick = { vibrate(); isAlbumOpen = true })
         }
 
-        GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 100.dp))
+        GameToast(message = toastMessage, modifier = Modifier.align(Alignment.TopCenter).padding(top = 120.dp))
 
+        // ДИАЛОГИ
         if (isShopOpen) {
             ShopDialog(
                 snowflakes = snowflakes.toLong(),
@@ -835,7 +845,7 @@ fun TreeCenter(
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = Color(0xFF141A33).copy(alpha = 0.9f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GoldAccent.copy(alpha = 0.55f))
+                border = BorderStroke(1.dp, GoldAccent.copy(alpha = 0.55f))
             ) {
                 Text(
                     text = "Ур. $treeLevel / $maxLevel",
@@ -845,11 +855,15 @@ fun TreeCenter(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // ОГРАНИЧИВАЕМ ЕЛКУ И ДЕЛАЕМ РАМКУ
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
+                    .width(230.dp) // Фиксированная ширина
                     .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(2.dp, GoldAccent.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
                     .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
@@ -858,7 +872,7 @@ fun TreeCenter(
                 Image(
                     painter = painterResource(id = R.drawable.tree_main),
                     contentDescription = "Ёлка",
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -866,7 +880,7 @@ fun TreeCenter(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 50.dp)
+                .offset(y = 60.dp)
         ) {
             FloatingClickParticle(trigger = plusOneTrigger, text = "+${formatNumber(clickPower.toLong())}", color = GoldAccent)
         }
@@ -900,8 +914,8 @@ fun FloatingClickParticle(trigger: Int, text: String = "+1", color: Color = Gold
 fun TopCurrencyPanel(snowflakes: Long, donateBalance: Long, incomeRate: Long, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .width(340.dp)
-            .height(78.dp)
+            .fillMaxWidth(0.85f) // Панель занимает 85% ширины экрана
+            .height(70.dp)
     ) {
         Image(
             painter = painterResource(id = R.drawable.ui_panel),
@@ -912,8 +926,8 @@ fun TopCurrencyPanel(snowflakes: Long, donateBalance: Long, incomeRate: Long, mo
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -921,9 +935,9 @@ fun TopCurrencyPanel(snowflakes: Long, donateBalance: Long, incomeRate: Long, mo
                     painter = painterResource(id = R.drawable.icon_snowflake),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(28.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text(
                         text = formatNumber(snowflakes),
@@ -944,9 +958,9 @@ fun TopCurrencyPanel(snowflakes: Long, donateBalance: Long, incomeRate: Long, mo
                     painter = painterResource(id = R.drawable.crystal),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(28.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = formatNumber(donateBalance),
                     color = IceCyan,
@@ -962,8 +976,8 @@ fun TopCurrencyPanel(snowflakes: Long, donateBalance: Long, incomeRate: Long, mo
 fun UpgradeButton(text: String, canAfford: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .width(240.dp)
-            .height(52.dp)
+            .width(220.dp)
+            .height(48.dp)
             .clickable(enabled = canAfford) { onClick() }
     ) {
         Image(
@@ -992,7 +1006,7 @@ fun NavButton(iconRes: Int, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(56.dp)
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
@@ -1016,7 +1030,7 @@ fun NavButton(iconRes: Int, label: String, onClick: () -> Unit) {
         Text(
             text = label,
             color = Color.White,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
@@ -1052,6 +1066,7 @@ fun InteractiveSnowmanImage(
                 .offset(y = bob.dp)
                 .alpha(if (isReady) 1f else 0.5f)
                 .clip(RoundedCornerShape(12.dp))
+                .border(2.dp, IceCyan.copy(alpha = 0.7f), RoundedCornerShape(12.dp)) // ДОБАВИЛИ РАМКУ
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
@@ -1060,14 +1075,15 @@ fun InteractiveSnowmanImage(
             Image(
                 painter = painterResource(id = R.drawable.snowman),
                 contentDescription = "Снеговик",
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
         }
+        Spacer(modifier = Modifier.height(4.dp))
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = NightSurface.copy(alpha = 0.88f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.45f))
+            border = BorderStroke(1.dp, IceCyan.copy(alpha = 0.45f))
         ) {
             Text(
                 text = if (isReady) "Бонус" else "...",
@@ -1098,6 +1114,7 @@ fun InteractiveRaccoon(
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(12.dp))
+                .border(2.dp, GoldAccent.copy(alpha = 0.7f), RoundedCornerShape(12.dp)) // ДОБАВИЛИ РАМКУ
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
@@ -1106,7 +1123,7 @@ fun InteractiveRaccoon(
             Image(
                 painter = painterResource(id = R.drawable.raccoon),
                 contentDescription = "Енот",
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -1196,7 +1213,7 @@ fun GameToast(message: String?, modifier: Modifier = Modifier) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = Color(0xFF1B1B38).copy(alpha = 0.96f),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldAccent.copy(alpha = 0.85f)),
+            border = BorderStroke(1.5.dp, GoldAccent.copy(alpha = 0.85f)),
             shadowElevation = 10.dp
         ) {
             Row(
@@ -1227,7 +1244,7 @@ fun WardrobeDialog(
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = NightSurface),
-            border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.55f)),
+            border = BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.55f)),
             modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -1297,7 +1314,7 @@ fun ShopDialog(
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = NightSurface),
-            border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)),
+            border = BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth(0.94f).padding(8.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1381,7 +1398,7 @@ fun SettingsDialog(
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = NightSurface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.4f)),
+            border = BorderStroke(1.dp, IceCyan.copy(alpha = 0.4f)),
             modifier = Modifier.fillMaxWidth(0.9f).padding(12.dp)
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
@@ -1435,7 +1452,7 @@ fun SettingsDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Версия 10.0 • Новая графика",
+                    text = "Версия 10.1 • Исправление верстки",
                     color = SnowSoft.copy(alpha = 0.6f),
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center,
@@ -1452,7 +1469,7 @@ fun DebugLogDialog(onDismiss: () -> Unit) {
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray),
+            border = BorderStroke(1.dp, Color.Gray),
             modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -1485,7 +1502,7 @@ fun WheelDialog(onDismiss: () -> Unit) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = NightSurface),
-            border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.6f)),
+            border = BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.6f)),
             modifier = Modifier.fillMaxWidth(0.9f).padding(12.dp)
         ) {
             Column(
@@ -1499,11 +1516,12 @@ fun WheelDialog(onDismiss: () -> Unit) {
                         .fillMaxWidth(0.8f)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp))
+                        .border(2.dp, GoldAccent, RoundedCornerShape(16.dp)) // Рамка
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.wheel_fortune),
                         contentDescription = "Колесо",
-                        contentScale = ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1530,7 +1548,7 @@ fun AlbumDialog(onDismiss: () -> Unit) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = NightSurface),
-            border = androidx.compose.foundation.BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.6f)),
+            border = BorderStroke(1.2.dp, IceCyan.copy(alpha = 0.6f)),
             modifier = Modifier.fillMaxWidth(0.9f).padding(12.dp)
         ) {
             Column(
@@ -1544,11 +1562,12 @@ fun AlbumDialog(onDismiss: () -> Unit) {
                         .fillMaxWidth(0.7f)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp))
+                        .border(2.dp, IceCyan, RoundedCornerShape(16.dp)) // Рамка
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.icon_album),
                         contentDescription = "Альбом",
-                        contentScale = ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
