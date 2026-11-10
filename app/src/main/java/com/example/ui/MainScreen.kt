@@ -69,6 +69,24 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 // ==========================================
+// БЕЗОПАСНЫЙ ЗАПУСК МУЗЫКИ (ВНЕ @Composable)
+// ==========================================
+fun createSafeMediaPlayer(context: Context, resId: Int, isLooping: Boolean = false): MediaPlayer? {
+    return try {
+        val mp = MediaPlayer.create(context, resId)
+        if (mp == null) {
+            println("🎵 ОШИБКА: Аудиофайл поврежден или не найден!")
+        } else {
+            mp.isLooping = isLooping
+        }
+        mp
+    } catch (e: Exception) {
+        println("🎵 КРИТИЧЕСКАЯ ОШИБКА ПЛЕЕРА: ${e.message}")
+        null
+    }
+}
+
+// ==========================================
 // 1. МАТЕМАТИКА И МОДЕЛИ (ЭТАЛОН)
 // ==========================================
 fun formatNumber(number: Long): String {
@@ -316,6 +334,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
+    // Звуки: Касса (fireplace), Камин (cash_register)
     val soundPool = remember { 
         val audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         SoundPool.Builder().setMaxStreams(5).setAudioAttributes(audioAttributes).build() 
@@ -338,11 +357,18 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
-    // Надежный запуск музыки БЕЗ try/catch внутри Compose
-    LaunchedEffect(isMusicEnabled, musicVolume, currentSongIndex) {
+    // МУЗЫКА: Создание плеера (без try/catch внутри @Composable)
+    LaunchedEffect(isMusicEnabled, currentSongIndex) {
         if (isMusicEnabled) {
             mediaPlayer?.release()
-            mediaPlayer = MediaPlayer.create(context, musicPlaylist[currentSongIndex])?.apply {
+            mediaPlayer = createSafeMediaPlayer(context, musicPlaylist[currentSongIndex], isLooping = false)?.apply {
+                // Задаем тип контента, чтобы Android не блокировал звук
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
                 setVolume(musicVolume, musicVolume)
                 setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
                 start()
@@ -352,22 +378,30 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
-    // Камин (звук из cash_register)
-    LaunchedEffect(currentTab, isSfxEnabled, sfxVolume) {
+    // МУЗЫКА: Изменение громкости (отдельно, чтобы не перезапускать трек)
+    LaunchedEffect(musicVolume) {
+        mediaPlayer?.setVolume(musicVolume, musicVolume)
+    }
+
+    // КАМИН: Звук из cash_register
+    LaunchedEffect(currentTab, isSfxEnabled) {
         if (currentTab == GameTab.ROOM && isSfxEnabled) {
             if (fireplacePlayer == null) {
-                fireplacePlayer = MediaPlayer.create(context, R.raw.cash_register)?.apply {
-                    isLooping = true
+                fireplacePlayer = createSafeMediaPlayer(context, R.raw.cash_register, isLooping = true)?.apply {
                     setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
                     start()
                 }
             } else {
-                fireplacePlayer?.setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
                 fireplacePlayer?.start()
             }
         } else {
             fireplacePlayer?.pause()
         }
+    }
+
+    // КАМИН: Изменение громкости
+    LaunchedEffect(sfxVolume) {
+        fireplacePlayer?.setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -1233,7 +1267,7 @@ fun SettingsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 9.3 • Финальная сборка 💎", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 9.4 • Музыкальный фикс 🎵", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
