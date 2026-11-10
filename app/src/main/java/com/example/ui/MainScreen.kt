@@ -25,8 +25,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -69,19 +72,33 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 // ==========================================
+// СИСТЕМА ЛОГИРОВАНИЯ (ДЛЯ ОТЛАДКИ)
+// ==========================================
+object GameLogger {
+    val logs = mutableStateListOf<String>()
+    fun log(msg: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        logs.add("[$time] $msg")
+        if (logs.size > 100) logs.removeAt(0) // Держим только последние 100 записей
+        println("GameLog: $msg")
+    }
+}
+
+// ==========================================
 // БЕЗОПАСНЫЙ ЗАПУСК МУЗЫКИ (ВНЕ @Composable)
 // ==========================================
-fun createSafeMediaPlayer(context: Context, resId: Int, isLooping: Boolean = false): MediaPlayer? {
+fun createSafeMediaPlayer(context: Context, resId: Int, name: String, isLooping: Boolean = false): MediaPlayer? {
     return try {
         val mp = MediaPlayer.create(context, resId)
         if (mp == null) {
-            println("🎵 ОШИБКА: Аудиофайл поврежден или не найден!")
+            GameLogger.log("❌ ОШИБКА: Файл $name не найден или поврежден (вернул null)")
         } else {
             mp.isLooping = isLooping
+            GameLogger.log("✅ УСПЕХ: $name загружен. Длительность: ${mp.duration} мс")
         }
         mp
     } catch (e: Exception) {
-        println("🎵 КРИТИЧЕСКАЯ ОШИБКА ПЛЕЕРА: ${e.message}")
+        GameLogger.log("💥 КРАХ $name: ${e.message}")
         null
     }
 }
@@ -304,6 +321,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isBackgroundsOpen by remember { mutableStateOf(false) }
     var isTvOpen by remember { mutableStateOf(false) }
+    var isDebugLogOpen by remember { mutableStateOf(false) } // Состояние для логов
+    
     var currentTab by remember { mutableStateOf(GameTab.ROOM) }
     var lightsMode by remember { mutableIntStateOf(0) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
@@ -357,12 +376,12 @@ fun MainScreen(onExitToMenu: () -> Unit) {
         }
     }
 
-    // МУЗЫКА: Создание плеера (без try/catch внутри @Composable)
+    // МУЗЫКА: Создание плеера
     LaunchedEffect(isMusicEnabled, currentSongIndex) {
         if (isMusicEnabled) {
+            GameLogger.log("🎵 Попытка запуска трека №${currentSongIndex + 1}")
             mediaPlayer?.release()
-            mediaPlayer = createSafeMediaPlayer(context, musicPlaylist[currentSongIndex], isLooping = false)?.apply {
-                // Задаем тип контента, чтобы Android не блокировал звук
+            mediaPlayer = createSafeMediaPlayer(context, musicPlaylist[currentSongIndex], "music${currentSongIndex + 1}", isLooping = false)?.apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -372,13 +391,15 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 setVolume(musicVolume, musicVolume)
                 setOnCompletionListener { currentSongIndex = (currentSongIndex + 1) % musicPlaylist.size }
                 start()
+                GameLogger.log("▶️ Трек запущен!")
             }
         } else {
+            GameLogger.log("⏸️ Музыка выключена пользователем")
             mediaPlayer?.pause()
         }
     }
 
-    // МУЗЫКА: Изменение громкости (отдельно, чтобы не перезапускать трек)
+    // МУЗЫКА: Изменение громкости
     LaunchedEffect(musicVolume) {
         mediaPlayer?.setVolume(musicVolume, musicVolume)
     }
@@ -387,7 +408,8 @@ fun MainScreen(onExitToMenu: () -> Unit) {
     LaunchedEffect(currentTab, isSfxEnabled) {
         if (currentTab == GameTab.ROOM && isSfxEnabled) {
             if (fireplacePlayer == null) {
-                fireplacePlayer = createSafeMediaPlayer(context, R.raw.cash_register, isLooping = true)?.apply {
+                GameLogger.log("🔥 Запуск звука камина")
+                fireplacePlayer = createSafeMediaPlayer(context, R.raw.cash_register, "fireplace", isLooping = true)?.apply {
                     setVolume(sfxVolume * 0.2f, sfxVolume * 0.2f)
                     start()
                 }
@@ -411,10 +433,12 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 mediaPlayer?.pause()
                 fireplacePlayer?.pause()
                 soundPool.autoPause()
+                GameLogger.log("💤 Приложение свернуто (пауза)")
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 if (isMusicEnabled) mediaPlayer?.start()
                 if (currentTab == GameTab.ROOM && isSfxEnabled) fireplacePlayer?.start()
                 soundPool.autoResume()
+                GameLogger.log("☀️ Приложение развернуто (возврат)")
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -425,6 +449,7 @@ fun MainScreen(onExitToMenu: () -> Unit) {
             fireplacePlayer?.stop()
             fireplacePlayer?.release()
             soundPool.release() 
+            GameLogger.log("🛑 Игра закрыта (выход)")
         }
     }
 
@@ -769,8 +794,13 @@ fun MainScreen(onExitToMenu: () -> Unit) {
                 musicVolume, onMusicVolumeChange = { musicVolume = it }, 
                 sfxVolume, onSfxVolumeChange = { sfxVolume = it }, 
                 onDismiss = { isSettingsOpen = false; persistGameState() }, 
-                onExitToMenu = onExitToMenu
+                onExitToMenu = onExitToMenu,
+                onOpenLogs = { isDebugLogOpen = true } // Передаем кнопку открытия логов
             )
+        }
+
+        if (isDebugLogOpen) {
+            DebugLogDialog(onDismiss = { isDebugLogOpen = false })
         }
 
         if (isTvOpen) {
@@ -1228,7 +1258,8 @@ fun SettingsDialog(
     musicVolume: Float, onMusicVolumeChange: (Float) -> Unit,
     sfxVolume: Float, onSfxVolumeChange: (Float) -> Unit,
     onDismiss: () -> Unit,
-    onExitToMenu: () -> Unit
+    onExitToMenu: () -> Unit,
+    onOpenLogs: () -> Unit // Новый параметр
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = NightSurface), border = androidx.compose.foundation.BorderStroke(1.dp, IceCyan.copy(alpha = 0.4f)), modifier = Modifier.fillMaxWidth(0.9f).padding(12.dp)) {
@@ -1262,12 +1293,52 @@ fun SettingsDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                Button(onClick = onOpenLogs, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3F51B5)), modifier = Modifier.fillMaxWidth()) {
+                    Text("🐞 Показать логи (для отладки)", color = SnowWhite)
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Button(onClick = { onDismiss(); onExitToMenu() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B1E32)), modifier = Modifier.fillMaxWidth()) {
                     Text("В главное меню", color = SnowWhite)
                 }
                 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Версия 9.4 • Музыкальный фикс 🎵", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(text = "Версия 9.5 • Диагностика 🩺", color = SnowSoft.copy(alpha = 0.6f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+fun DebugLogDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray),
+            modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.85f)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Логи игры 🐞", color = Color.Green, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = Color.White) }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider(color = Color.DarkGray)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(GameLogger.logs) { log ->
+                        Text(
+                            text = log, 
+                            color = if (log.contains("❌") || log.contains("💥")) Color.Red else Color.LightGray, 
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
             }
         }
     }
