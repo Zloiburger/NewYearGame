@@ -1,8 +1,8 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -65,7 +65,7 @@ fun AlbumScreen(onBack: () -> Unit) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (isUnlocked) NightSurfaceVariant else Color.Black.copy(alpha = 0.5f),
-                border = borderStroke(1.dp, if (isUnlocked) GoldAccent.copy(alpha = 0.5f) else Color.Transparent),
+                border = BorderStroke(1.dp, if (isUnlocked) GoldAccent.copy(alpha = 0.5f) else Color.Transparent),
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             ) {
                 if (isUnlocked) {
@@ -115,7 +115,7 @@ fun AlbumScreen(onBack: () -> Unit) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (isPurchased) NightSurfaceVariant else Color.Black.copy(alpha = 0.3f),
-                border = borderStroke(1.dp, if (isPurchased) IceCyan.copy(alpha = 0.5f) else Color.Transparent),
+                border = BorderStroke(1.dp, if (isPurchased) IceCyan.copy(alpha = 0.5f) else Color.Transparent),
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f)
             ) {
                 Column(
